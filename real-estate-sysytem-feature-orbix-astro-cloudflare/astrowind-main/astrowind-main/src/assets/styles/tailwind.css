@@ -1,0 +1,867 @@
+﻿@import 'tailwindcss';
+
+@plugin "@tailwindcss/typography";
+
+@variant dark (&:where(.dark, .dark *));
+
+@custom-variant intersect (&:not([no-intersect]));
+
+@theme {
+  --color-primary: var(--aw-color-primary);
+  --color-secondary: var(--aw-color-secondary);
+  --color-accent: var(--aw-color-accent);
+  --color-default: var(--aw-color-text-default);
+  --color-muted: var(--aw-color-text-muted);
+
+  --font-sans:
+    var(--aw-font-sans, ui-sans-serif), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-serif: var(--aw-font-serif, ui-serif), ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  --font-heading: var(--aw-font-heading, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+
+  --animate-fade: fadeInUp 1s both;
+
+  @keyframes fadeInUp {
+    0% {
+      opacity: 0;
+      transform: translateY(2rem);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@utility bg-page {
+  background-color: var(--aw-color-bg-page);
+}
+
+@utility bg-dark {
+  background-color: var(--aw-color-bg-page-dark);
+}
+
+@utility bg-light {
+  background-color: var(--aw-color-bg-page);
+}
+
+@utility text-page {
+  color: var(--aw-color-text-page);
+}
+
+@utility text-muted {
+  color: var(--aw-color-text-muted);
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center rounded-full border-gray-400 border bg-transparent font-medium text-center text-base text-page leading-snug transition py-3.5 px-6 md:px-8 ease-in duration-200 focus:ring-blue-500 focus:ring-offset-blue-200 focus:ring-2 focus:ring-offset-2 hover:bg-gray-100 hover:border-gray-600 dark:text-slate-300 dark:border-slate-500 dark:hover:bg-slate-800 dark:hover:border-slate-800 cursor-pointer;
+}
+
+@utility btn-primary {
+  @apply btn font-semibold bg-primary text-white border-primary hover:bg-secondary hover:border-secondary hover:text-white dark:text-white dark:bg-primary dark:border-primary dark:hover:border-secondary dark:hover:bg-secondary;
+}
+
+@utility btn-secondary {
+  @apply btn;
+}
+
+@utility btn-tertiary {
+  @apply btn border-none shadow-none text-muted hover:text-gray-900 dark:text-gray-400 dark:hover:text-white;
+}
+
+#header.scroll > div:first-child {
+  @apply bg-page md:backdrop-blur-md;
+  box-shadow: 0 0.375rem 1.5rem 0 rgb(140 152 164 / 13%);
+}
+.dark #header.scroll > div:first-child,
+#header.scroll.dark > div:first-child {
+  @apply bg-page md:bg-[#030621e6] border-b border-gray-500/20;
+  box-shadow: none;
+}
+
+#header.expanded nav {
+  position: fixed;
+  top: 70px;
+  left: 0;
+  right: 0;
+  bottom: 70px !important;
+  padding: 0 5px;
+}
+
+.dropdown:focus .dropdown-menu,
+.dropdown:focus-within .dropdown-menu,
+.dropdown:hover .dropdown-menu {
+  display: block;
+}
+
+[astro-icon].icon-light > * {
+  stroke-width: 1.2;
+}
+
+[astro-icon].icon-bold > * {
+  stroke-width: 2.4;
+}
+
+[data-aw-toggle-menu] path {
+  @apply transition;
+}
+[data-aw-toggle-menu].expanded g > path:first-child {
+  @apply -rotate-45 translate-y-[15px] translate-x-[-3px];
+}
+[data-aw-toggle-menu].expanded g > path:last-child {
+  @apply rotate-45 translate-y-[-8px] translate-x-[14px];
+}
+
+.dd *:first-child {
+  margin-top: 0;
+}
+/* ORBIX BRAND ASSETS START */
+
+:root {
+  --orbix-blue: #016afa;
+  --orbix-blue-light: #69a8fe;
+  --orbix-navy: #123f73;
+  --orbix-dark: #05080d;
+  --orbix-surface: #0b111b;
+  --orbix-white: #ffffff;
+  --orbix-muted: #aebbc9;
+  --orbix-border: rgb(105 168 254 / 22%);
+}
+
+html {
+  color-scheme: dark;
+  background: var(--orbix-dark);
+}
+
+html[lang='ar'] {
+  direction: rtl;
+}
+
+html[lang='ar'],
+html[lang='ar'] body,
+[dir='rtl'] {
+  font-family: var(--font-ibm-plex-sans-arabic), 'IBM Plex Sans Arabic', sans-serif;
+}
+
+body,
+main {
+  background-color: var(--orbix-dark);
+  color: var(--orbix-white);
+}
+
+.orbix-brand-pattern {
+  background-image: var(--orbix-pattern-image);
+}
+
+.orbix-brand-pattern--city {
+  background-position: center bottom;
+  background-repeat: repeat-x;
+  background-size: auto clamp(7rem, 14vw, 12rem);
+}
+
+.orbix-brand-pattern--circle {
+  inset: 5% 3% auto auto;
+  width: clamp(13rem, 28vw, 27rem);
+  height: clamp(13rem, 28vw, 27rem);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+[dir='rtl'] .orbix-brand-pattern--circle {
+  right: auto;
+  left: 3%;
+}
+
+.orbix-brand-icon {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.orbix-brand-icon img {
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+a:hover .orbix-brand-icon img {
+  transform: translateY(-3px);
+}
+
+.orbix-brand-icon--white img {
+  filter: brightness(0) invert(1);
+}
+
+.orbix-brand-icon--navy img {
+  filter: saturate(0.7) brightness(0.72);
+}
+
+.orbix-brand-icon--muted img {
+  opacity: 0.62;
+  filter: saturate(0.55);
+}
+
+.orbix-brand-icon--blue img {
+  filter: none;
+}
+
+.orbix-brand-surface {
+  background-color: var(--orbix-surface);
+  border: 1px solid var(--orbix-border);
+}
+
+.orbix-brand-divider {
+  min-height: 9rem;
+  background-color: var(--orbix-blue);
+  background-image: url('/orbix/brand/patterns/city-landmarks-white-on-blue.png');
+  background-position: center bottom;
+  background-repeat: repeat-x;
+  background-size: auto 8rem;
+}
+
+::selection {
+  color: var(--orbix-white);
+  background: var(--orbix-blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbix-brand-icon img {
+    transition: none;
+  }
+
+  a:hover .orbix-brand-icon img {
+    transform: none;
+  }
+}
+
+/* ORBIX BRAND ASSETS END */
+
+/* ORBIX LIGHT IDENTITY START */
+
+:root {
+  --orbix-white: #ffffff;
+  --orbix-blue: #016afa;
+  --orbix-blue-light: #69a8fe;
+  --orbix-navy: #123f73;
+  --orbix-ink: #26374a;
+  --orbix-muted: #5c6f85;
+  --orbix-surface: #f6f9ff;
+  --orbix-surface-blue: #eaf3ff;
+  --orbix-border: #d5e7ff;
+
+  --aw-color-bg-page: #ffffff;
+  --aw-color-bg-page-dark: #ffffff;
+  --aw-color-text-heading: #123f73;
+  --aw-color-text-default: #26374a;
+  --aw-color-text-muted: #5c6f85;
+}
+
+html,
+body,
+main {
+  color: var(--orbix-ink);
+  background: var(--orbix-white);
+}
+
+body {
+  font-family: var(--font-ibm-plex-sans-arabic), 'IBM Plex Sans Arabic', sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--orbix-navy);
+  letter-spacing: -0.025em;
+}
+
+#header > div:first-child {
+  color: var(--orbix-navy);
+  background: rgb(255 255 255 / 96%);
+  border-bottom: 1px solid var(--orbix-border);
+  box-shadow: none;
+}
+
+#header a:not(.btn):not(.btn-primary) {
+  color: var(--orbix-navy);
+}
+
+#header a:not(.btn):not(.btn-primary):hover {
+  color: var(--orbix-blue);
+}
+
+#header.scroll > div:first-child,
+.dark #header.scroll > div:first-child,
+#header.scroll.dark > div:first-child {
+  background: rgb(255 255 255 / 96%);
+  border-bottom: 1px solid var(--orbix-border);
+  box-shadow: 0 10px 30px rgb(18 63 115 / 8%);
+}
+
+.orbix-light-section {
+  color: var(--orbix-ink);
+  background: var(--orbix-white);
+  border-color: var(--orbix-border);
+}
+
+.orbix-light-section h1,
+.orbix-light-section h2,
+.orbix-light-section h3,
+.orbix-light-section dt,
+.orbix-light-section dd {
+  color: var(--orbix-navy);
+}
+
+.orbix-light-section p {
+  color: var(--orbix-muted);
+}
+
+.orbix-light-section p[class*='orbix-blue-light'],
+.orbix-light-section p[class*='font-mono'] {
+  color: var(--orbix-blue);
+}
+
+.orbix-light-section article,
+.orbix-light-section dl,
+.orbix-light-section [class*='orbix-surface'] {
+  color: var(--orbix-ink);
+  background: var(--orbix-surface);
+  border-color: var(--orbix-border);
+}
+
+.orbix-light-section article h3 {
+  color: var(--orbix-navy);
+}
+
+.orbix-light-section article p {
+  color: var(--orbix-muted);
+}
+
+.orbix-light-section .btn-primary {
+  color: var(--orbix-white);
+  background: var(--orbix-blue);
+  border-color: var(--orbix-blue);
+}
+
+.orbix-light-section .btn-primary:hover {
+  color: var(--orbix-white);
+  background: var(--orbix-navy);
+  border-color: var(--orbix-navy);
+}
+
+.orbix-light-section .btn-secondary {
+  color: var(--orbix-blue);
+  background: transparent;
+  border-color: var(--orbix-blue);
+}
+
+.orbix-light-section .btn-secondary:hover {
+  color: var(--orbix-white);
+  background: var(--orbix-blue);
+}
+
+.orbix-brand-pattern--city {
+  background-image: url('/orbix/brand/patterns/city-landmarks-blue.png');
+  background-position: center bottom;
+  background-repeat: repeat-x;
+  background-size: auto clamp(7rem, 14vw, 12rem);
+}
+
+.orbix-light-section .orbix-brand-pattern--city {
+  opacity: 0.16;
+}
+
+.orbix-brand-divider {
+  min-height: 10rem;
+  background-color: var(--orbix-blue);
+  background-image: url('/orbix/brand/patterns/city-landmarks-white-on-blue.png');
+  background-position: center bottom;
+  background-repeat: repeat-x;
+  background-size: auto 9rem;
+}
+
+footer {
+  color: var(--orbix-white);
+  background: var(--orbix-navy);
+}
+
+footer h2,
+footer h3,
+footer h4,
+footer a {
+  color: var(--orbix-white);
+}
+
+footer p {
+  color: rgb(255 255 255 / 72%);
+}
+
+footer a:hover {
+  color: var(--orbix-blue-light);
+}
+
+::selection {
+  color: var(--orbix-white);
+  background: var(--orbix-blue);
+}
+
+/* ORBIX LIGHT IDENTITY END */
+
+/* ORBIX FOOTER PATTERN START */
+
+footer {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  background-color: var(--orbix-navy, #123f73);
+}
+
+/*
+ * Original Orbix city-landmark pattern.
+ * It appears as a branded blue strip above the footer content.
+ */
+footer::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: clamp(7rem, 13vw, 11rem);
+  background-color: var(--orbix-blue, #016afa);
+  background-image: url('/orbix/brand/patterns/city-landmarks-white-on-blue.png');
+  background-position: center bottom;
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  border-bottom: 1px solid rgb(255 255 255 / 20%);
+  pointer-events: none;
+}
+
+footer > * {
+  position: relative;
+  z-index: 1;
+}
+
+footer h1,
+footer h2,
+footer h3,
+footer h4,
+footer h5,
+footer h6 {
+  color: #ffffff;
+}
+
+footer p {
+  color: rgb(255 255 255 / 74%);
+}
+
+footer a {
+  color: #ffffff;
+  transition:
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+footer a:hover {
+  color: var(--orbix-blue-light, #69a8fe);
+}
+
+@media (max-width: 640px) {
+  footer::before {
+    height: 7rem;
+    background-position: center bottom;
+    background-size: auto 6.5rem;
+  }
+}
+
+/* ORBIX FOOTER PATTERN END */
+
+/* ==========================================================
+   Orbix navigation + dropdown + Light/Dark mode
+   ========================================================== */
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  transform-origin: top center;
+}
+
+@media (min-width: 768px) {
+  .dropdown:hover > .dropdown-menu,
+  .dropdown:focus-within > .dropdown-menu {
+    display: block;
+    animation: orbix-dropdown-in 160ms ease-out both;
+  }
+
+  [dir='rtl'] .dropdown-menu {
+    right: 0;
+    left: auto;
+  }
+
+  [dir='ltr'] .dropdown-menu {
+    right: auto;
+    left: 0;
+  }
+}
+
+@keyframes orbix-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.aw-link-active {
+  color: var(--orbix-blue) !important;
+}
+
+.dark .aw-link-active {
+  color: var(--orbix-blue-light) !important;
+}
+
+/* Light mode tokens */
+html:not(.dark) {
+  --aw-color-bg-page: #f7faff;
+  --aw-color-bg-page-dark: #f7faff;
+  --aw-color-text-heading: #061d3d;
+  --aw-color-text-default: #102a4c;
+  --aw-color-text-muted: #64748b;
+
+  --orbix-dark: #f7faff;
+  --orbix-surface: #ffffff;
+  --orbix-border: #dbe7f5;
+  --orbix-text: #061d3d;
+}
+
+/* Dark mode tokens */
+html.dark {
+  --aw-color-bg-page: #030621;
+  --aw-color-bg-page-dark: #030621;
+  --aw-color-text-heading: #ffffff;
+  --aw-color-text-default: #eef5ff;
+  --aw-color-text-muted: #a9b8cb;
+
+  --orbix-dark: #030621;
+  --orbix-surface: #081a38;
+  --orbix-border: #18345b;
+  --orbix-text: #ffffff;
+}
+
+html:not(.dark) body,
+html:not(.dark) main {
+  background: #f7faff;
+  color: #102a4c;
+}
+
+html.dark body,
+html.dark main {
+  background: #030621;
+  color: #eef5ff;
+}
+
+[data-aw-toggle-color-scheme] {
+  color: #061d3d;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+[data-aw-toggle-color-scheme]:hover {
+  color: #086fff;
+  background: #eaf3ff;
+  transform: rotate(10deg);
+}
+
+.dark [data-aw-toggle-color-scheme] {
+  color: #ffffff;
+}
+
+.dark [data-aw-toggle-color-scheme]:hover {
+  color: #7db7ff;
+  background: rgb(255 255 255 / 0.1);
+}
+
+/* Mobile navigation */
+@media (max-width: 767px) {
+  #header.expanded {
+    background: #ffffff;
+    color: #061d3d;
+  }
+
+  .dark #header.expanded {
+    background: #030621;
+    color: #ffffff;
+  }
+
+  #header.expanded nav {
+    display: flex;
+    padding: 1rem;
+  }
+
+  #header.expanded nav > ul {
+    gap: 0.25rem;
+  }
+
+  #header.expanded .dropdown-menu {
+    margin-inline: 1rem;
+    border-inline-start: 2px solid var(--orbix-blue);
+    padding-inline-start: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-menu {
+    animation: none !important;
+  }
+
+  [data-aw-toggle-color-scheme] {
+    transition: none;
+  }
+}
+
+/* ORBIX_VISUAL_REPAIR */
+
+html {
+  scroll-padding-top: 6rem;
+}
+
+body {
+  background: var(--orbix-page);
+  color: var(--orbix-copy);
+}
+
+#header {
+  min-height: 5.5rem;
+}
+
+#header > div:first-of-type {
+  min-height: 5.5rem;
+}
+
+#header nav a,
+#header nav button {
+  color: inherit;
+}
+
+#header .dropdown-menu {
+  color: var(--orbix-copy);
+}
+
+.dark #header .dropdown-menu {
+  color: #ffffff;
+}
+
+#header .aw-link-active {
+  color: var(--orbix-blue) !important;
+}
+
+.dropdown {
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .dropdown:hover > .dropdown-menu,
+  .dropdown:focus-within > .dropdown-menu {
+    display: block;
+  }
+
+  [dir='rtl'] .dropdown-menu {
+    right: 0;
+    left: auto;
+  }
+
+  [dir='ltr'] .dropdown-menu {
+    right: auto;
+    left: 0;
+  }
+}
+
+main > section {
+  position: relative;
+}
+
+main > section > [aria-hidden='true'] {
+  z-index: 0;
+}
+
+main > section > :not([aria-hidden='true']) {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 767px) {
+  #header.expanded {
+    height: 100dvh;
+    background: var(--orbix-page);
+  }
+
+  #header.expanded nav {
+    top: 5.5rem;
+    bottom: 5rem !important;
+    color: var(--orbix-copy);
+  }
+
+  .dark #header.expanded nav {
+    color: #ffffff;
+  }
+}
+
+/* ORBIX_DROPDOWN_START */
+
+.dropdown {
+  position: relative;
+}
+
+.dropdown > button svg {
+  transition: transform 160ms ease;
+}
+
+.dropdown:hover > button svg,
+.dropdown:focus-within > button svg {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  z-index: 60;
+  overflow: hidden;
+  border: 1px solid var(--orbix-border, #d7e5f5);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 0.97);
+  box-shadow:
+    0 18px 50px rgb(14 45 80 / 0.16),
+    0 4px 12px rgb(14 45 80 / 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.dropdown-menu a {
+  display: block;
+  min-width: 15rem;
+  padding: 0.8rem 1.15rem;
+  color: #163e6b;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  text-align: right;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu a:focus-visible {
+  background: #eaf3ff;
+  color: #0874ff;
+  outline: none;
+}
+
+.dropdown-menu .aw-link-active {
+  background: #eaf3ff;
+  color: #0874ff !important;
+}
+
+html.dark .dropdown-menu {
+  border-color: rgb(121 181 255 / 0.18);
+  background: rgb(7 26 58 / 0.98);
+  box-shadow:
+    0 22px 65px rgb(0 0 0 / 0.42),
+    0 4px 14px rgb(0 0 0 / 0.28);
+}
+
+html.dark .dropdown-menu a {
+  color: #dce9f8;
+}
+
+html.dark .dropdown-menu a:hover,
+html.dark .dropdown-menu a:focus-visible,
+html.dark .dropdown-menu .aw-link-active {
+  background: rgb(8 116 255 / 0.16);
+  color: #79b5ff !important;
+}
+
+@media (min-width: 768px) {
+  .dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    display: none;
+    padding: 0.45rem;
+  }
+
+  [dir='rtl'] .dropdown-menu {
+    right: 0;
+    left: auto;
+  }
+
+  [dir='ltr'] .dropdown-menu {
+    right: auto;
+    left: 0;
+  }
+
+  .dropdown:hover > .dropdown-menu,
+  .dropdown:focus-within > .dropdown-menu {
+    display: block;
+    animation: orbix-dropdown-show 150ms ease-out both;
+  }
+
+  @keyframes orbix-dropdown-show {
+    from {
+      opacity: 0;
+      transform: translateY(-0.4rem) scale(0.985);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .dropdown {
+    width: 100%;
+  }
+
+  .dropdown > button {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dropdown-menu {
+    display: block;
+    margin: 0 0.75rem 0.75rem;
+    border-radius: 0.6rem;
+    box-shadow: none;
+  }
+
+  .dropdown-menu a {
+    min-width: 0;
+    padding: 0.7rem 1rem;
+    font-size: 0.88rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropdown-menu {
+    animation: none !important;
+  }
+
+  .dropdown > button svg {
+    transition: none;
+  }
+}
+
+/* ORBIX_DROPDOWN_END */

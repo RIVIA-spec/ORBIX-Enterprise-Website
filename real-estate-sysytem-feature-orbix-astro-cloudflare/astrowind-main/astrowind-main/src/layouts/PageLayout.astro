@@ -1,0 +1,90 @@
+﻿---
+import Layout from '~/layouts/Layout.astro';
+import Header from '~/components/widgets/Header.astro';
+import Footer from '~/components/widgets/Footer.astro';
+
+import { getNavigation, toFooterGroups, toNavLinks } from '~/lib/strapi/client';
+import type { MetaData } from '~/types';
+import { escapeCmsText, safeCmsUrl } from '~/lib/content/sanitize';
+
+export interface Props {
+  metadata?: MetaData;
+}
+
+const { metadata } = Astro.props;
+const nav = await getNavigation();
+
+const headerSettings = nav.headerSettings || {};
+const footerSettings = nav.footerSettings || {};
+
+const cmsHeaderData = {
+  links: toNavLinks(nav.header),
+  actions:
+    headerSettings.showContactButton === false
+      ? []
+      : [
+          {
+            text: escapeCmsText(headerSettings.contactButtonText || 'Contact'),
+            href: safeCmsUrl(headerSettings.contactButtonUrl, '/contact'),
+            variant: 'primary' as const,
+          },
+        ],
+};
+
+const copyright = footerSettings.copyrightText || 'Orbix by RIVIA. All rights reserved.';
+
+const cmsFooterData = {
+  brand: nav.brand,
+  links: toFooterGroups(nav.footer),
+  secondaryLinks:
+    footerSettings.showTechnicalLinks === false
+      ? []
+      : nav.technical.map((link) => ({
+          text: link.label || link.text,
+          href: safeCmsUrl(link.url || link.href),
+        })),
+  socialLinks:
+    footerSettings.showSocialLinks === false
+      ? []
+      : nav.social.map((link) => ({
+          ariaLabel: link.ariaLabel || link.label,
+          icon: link.icon,
+          href: safeCmsUrl(link.url || link.href),
+          text: '',
+        })),
+  footNote: copyright,
+};
+---
+
+<Layout metadata={metadata}>
+  <Fragment slot="head"><slot name="head" /></Fragment>
+  {
+    headerSettings.isVisible !== false && (
+      <slot name="header">
+        <Header
+          {...cmsHeaderData}
+          brand={nav.brand}
+          isSticky={headerSettings.isSticky !== false}
+          isDark={headerSettings.style !== 'light'}
+          isFullWidth={headerSettings.isFullWidth === true}
+          showToggleTheme={headerSettings.showThemeToggle !== false}
+          showRssFeed={headerSettings.showRssFeed !== false}
+          position={headerSettings.menuPosition || 'center'}
+          logoVariant={headerSettings.logoVariant || 'full'}
+        />
+      </slot>
+    )
+  }
+
+  <main>
+    <slot />
+  </main>
+
+  {
+    footerSettings.isVisible !== false && (
+      <slot name="footer">
+        <Footer {...cmsFooterData} />
+      </slot>
+    )
+  }
+</Layout>

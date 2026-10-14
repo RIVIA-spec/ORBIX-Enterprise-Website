@@ -1,0 +1,748 @@
+const {onCall, onRequest, HttpsError} = require('firebase-functions/v2/https');
+const {onSchedule} = require('firebase-functions/v2/scheduler');
+const {defineSecret} = require('firebase-functions/params');
+const {getFirestore, FieldValue, Timestamp} = require('firebase-admin/firestore');
+const {getStorage} = require('firebase-admin/storage');
+const logger = require('firebase-functions/logger');
+const {
+  CONTRACT_STATUSES,
+  TRANSACTION_STATUSES,
+  COMMISSION_STATUSES,
+  TERMINAL_CONTRACT_STATUSES,
+  isOpenContractStatus,
+  normalizeDocusealEventType,
+  normalizeDocusealSubmissionId,
+  normalizeSubmitters,
+  statusFromDocusealSubmission,
+  buildWebhookEventKey,
+  verifyDocusealSignature,
+  verifyStripeSignature,
+  calculateCommission,
+} = require('./contract_logic');
+
+const DOCUSEAL_API_KEY = defineSecret('DOCUSEAL_API_KEY');
+const DOCUSEAL_WEBHOOK_SECRET = defineSecret('DOCUSEAL_WEBHOOK_SECRET');
+const DOCUSEAL_TEMPLATE_DIRECT_PARTY_CONTRACT_ID = defineSecret('DOCUSEAL_TEMPLATE_DIRECT_PARTY_CONTRACT_ID');
+const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
+const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
+const DOCUSEAL_API_BASE_URL = 'https://orbix-contracts-production.up.railway.app/api';
+const STRIPE_API_BASE_URL = 'https://api.stripe.com/v1';
+
+function assertObject(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new HttpsError('invalid-argument', 'Invalid request');
+  }
+}
+
+function stringValue(value) {
+  return String(value || '').trim();
+}
+
+function assertString(value, name) {
+  const normalized = stringValue(value);
+  if (!normalized) throw new HttpsError('invalid-argument', `${name} is required`);
+  return normalized;
+}
+
+function requireCallableAuth(request) {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Authentication required');
+  return request.auth.uid;
+}
+
+async function getUser(db, uid) {
+  if (!uid) return {};
+  const snap = await db.collection('users').doc(uid).get();
+  return snap.exists ? snap.data() || {} : {};
+}
+
+function rolesFrom(userData, token) {
+  return [userData?.role, userData?.platformRole, token?.role, token?.platformRole]
+    .filter(Boolean)
+    .map((role) => String(role).toLowerCase());
+}
+
+function isStaffUser(userData, token) {
+  return rolesFrom(userData, token).some((role) => ['owner', 'admin', 'superadmin', 'staff'].includes(role));
+}
+
+function isParty(transaction, uid) {
+  return transaction?.parties?.partyAUid === uid || transaction?.parties?.partyBUid === uid;
+}
+
+function canManageTransaction(transaction, uid, staff) {
+  return staff || transaction.createdByUid === uid || isParty(transaction, uid);
+}
+
+function safeName(userData, fallback) {
+  return stringValue(userData.fullName || userData.displayName || userData.username || userData.name || fallback);
+}
+
+function listingTypeToTransactionType(listingType) {
+  const normalized = stringValue(listingType);
+  if (['sale', 'property'].includes(normalized)) return 'property_sale';
+  return 'property_rental';
+}
+
+function transactionInputFromDeal(dealId, deal) {
+  return {
+    type: listingTypeToTransactionType(deal.listingType || deal.dealType),
+    parties: {
+      partyAUid: stringValue(deal.ownerUserId || deal.ownerId),
+      partyARole: 'seller_or_lessor',
+      partyBUid: stringValue(deal.customerUserId),
+      partyBRole: 'buyer_or_renter',
+    },
+    source: {
+      propertyId: stringValue(deal.propertyId || deal.property_id),
+      leadId: dealId,
+    },
+    createdByUid: stringValue(deal.customerUserId),
+    payerUid: stringValue(deal.customerUserId),
+    sourceSummary: {
+      title: stringValue(deal.propertyTitle || deal.property_title),
+      currency: stringValue(deal.currency || 'usd').toLowerCase(),
+    },
+  };
+}
+
+function transactionInputFromBooking(bookingId, booking) {
+  return {
+    type: 'hotel_booking',
+    parties: {
+      partyAUid: stringValue(booking.ownerUserId || booking.hotelOwnerUid || booking.hotelOwnerId),
+      partyARole: 'hotel',
+      partyBUid: stringValue(booking.customerUserId || booking.guestUid || booking.userId),
+      partyBRole: 'guest',
+    },
+    source: {
+      hotelId: stringValue(booking.hotelId || booking.hotel_id),
+      bookingId,
+    },
+    createdByUid: stringValue(booking.customerUserId || booking.guestUid || booking.userId),
+    payerUid: stringValue(booking.customerUserId || booking.guestUid || booking.userId),
+    sourceSummary: {
+      title: stringValue(booking.hotelName || booking.hotel_name || booking.propertyTitle),
+      currency: stringValue(booking.currency || booking.nightly_currency || booking.daily_price_currency || 'usd').toLowerCase(),
+    },
+  };
+}
+
+function validateTransactionInput(input) {
+  if (!['property_sale', 'property_rental', 'hotel_booking'].includes(input.type)) {
+    throw new HttpsError('invalid-argument', 'Unsupported transaction type');
+  }
+  if (!input.parties.partyAUid || !input.parties.partyBUid || input.parties.partyAUid === input.parties.partyBUid) {
+    throw new HttpsError('failed-precondition', 'Transaction must include two real parties');
+  }
+}
+
+async function audit(db, parentRef, event) {
+  await parentRef.collection('auditEvents').add({
+    type: event.type,
+    actorType: event.actorType || 'system',
+    actorUid: event.actorUid || null,
+    timestamp: FieldValue.serverTimestamp(),
+    data: event.data || {},
+  });
+}
+
+async function resolveOrCreateTransaction(db, transaction, uid, staff) {
+  if (transaction.transactionId) {
+    const ref = db.collection('transactions').doc(transaction.transactionId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Transaction not found');
+    const data = snap.data() || {};
+    if (!canManageTransaction(data, uid, staff)) throw new HttpsError('permission-denied', 'Permission denied');
+    validateTransactionInput(data);
+    return {ref, id: ref.id, data};
+  }
+
+  let input;
+  let lookupField;
+  let lookupValue;
+  if (transaction.dealId) {
+    const dealId = assertString(transaction.dealId, 'dealId');
+    const dealSnap = await db.collection('deals').doc(dealId).get();
+    if (!dealSnap.exists) throw new HttpsError('not-found', 'Deal not found');
+    const deal = dealSnap.data() || {};
+    const participantIds = [deal.customerUserId, deal.ownerUserId, deal.ownerId].filter(Boolean);
+    if (!staff && !participantIds.includes(uid)) throw new HttpsError('permission-denied', 'Permission denied');
+    input = transactionInputFromDeal(dealId, deal);
+    lookupField = 'source.leadId';
+    lookupValue = dealId;
+  } else if (transaction.bookingId) {
+    const bookingId = assertString(transaction.bookingId, 'bookingId');
+    const ownBooking = await db.collection('users').doc(uid).collection('user_bookings').doc(bookingId).get();
+    let bookingSnap = ownBooking.exists ? ownBooking : null;
+    if (!bookingSnap && staff) {
+      const group = await db.collectionGroup('user_bookings').where('bookingId', '==', bookingId).limit(1).get();
+      bookingSnap = group.docs[0] || null;
+    }
+    if (!bookingSnap) throw new HttpsError('not-found', 'Booking not found');
+    const booking = bookingSnap.data() || {};
+    const participantIds = [booking.customerUserId, booking.guestUid, booking.userId, booking.ownerUserId, booking.hotelOwnerUid].filter(Boolean);
+    if (!staff && !participantIds.includes(uid)) throw new HttpsError('permission-denied', 'Permission denied');
+    input = transactionInputFromBooking(bookingId, booking);
+    lookupField = 'source.bookingId';
+    lookupValue = bookingId;
+  } else {
+    throw new HttpsError('invalid-argument', 'transactionId, dealId, or bookingId is required');
+  }
+
+  validateTransactionInput(input);
+  const deterministicId = `${input.type}_${lookupValue}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 240);
+  const deterministicRef = db.collection('transactions').doc(deterministicId);
+  const deterministicSnap = await deterministicRef.get();
+  if (deterministicSnap.exists) {
+    const data = deterministicSnap.data() || {};
+    if (!canManageTransaction(data, uid, staff)) throw new HttpsError('permission-denied', 'Permission denied');
+    return {ref: deterministicRef, id: deterministicRef.id, data};
+  }
+  const existing = await db.collection('transactions').where(lookupField, '==', lookupValue).limit(1).get();
+  if (!existing.empty) {
+    const ref = existing.docs[0].ref;
+    const data = existing.docs[0].data() || {};
+    if (!canManageTransaction(data, uid, staff)) throw new HttpsError('permission-denied', 'Permission denied');
+    return {ref, id: ref.id, data};
+  }
+
+  const commission = calculateCommission({type: input.type, currency: input.sourceSummary.currency});
+  const ref = deterministicRef;
+  const data = {
+    type: input.type,
+    platformRole: 'facilitator',
+    parties: input.parties,
+    partyUserIds: [input.parties.partyAUid, input.parties.partyBUid],
+    source: input.source,
+    sourceSummary: input.sourceSummary,
+    dealStatus: TRANSACTION_STATUSES.DRAFT,
+    completion: {
+      partyAConfirmedAt: null,
+      partyBConfirmedAt: null,
+      reviewedByUid: null,
+      reviewedAt: null,
+      completionEvidenceRefs: [],
+    },
+    contractId: null,
+    createdByUid: input.createdByUid || uid,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    commission: {
+      amount: commission.amount,
+      currency: commission.currency,
+      ruleSnapshot: commission.ruleSnapshot,
+      status: COMMISSION_STATUSES.NOT_DUE,
+      payerUid: input.payerUid || input.parties.partyBUid,
+      checkoutSessionId: null,
+      checkoutExpiresAt: null,
+      paymentIntentId: null,
+      paidAt: null,
+      invoiceRef: null,
+    },
+    processedStripeEvents: [],
+  };
+  try {
+    await ref.create(data);
+  } catch (error) {
+    const snap = await ref.get();
+    if (snap.exists) {
+      const existingData = snap.data() || {};
+      if (!canManageTransaction(existingData, uid, staff)) throw new HttpsError('permission-denied', 'Permission denied');
+      return {ref, id: ref.id, data: existingData};
+    }
+    throw error;
+  }
+  await audit(db, ref, {
+    type: 'transaction_created',
+    actorType: staff ? 'staff' : 'party',
+    actorUid: uid,
+    data: {type: input.type, source: input.source},
+  });
+  const snap = await ref.get();
+  return {ref, id: ref.id, data: snap.data() || {}};
+}
+
+async function docusealFetch(path, options = {}) {
+  const headers = {'X-Auth-Token': DOCUSEAL_API_KEY.value(), ...(options.headers || {})};
+  if (options.body) headers['content-type'] = 'application/json';
+  const response = await fetch(`${DOCUSEAL_API_BASE_URL}${path}`, {...options, headers});
+  const text = await response.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (_) {
+    body = {raw: text};
+  }
+  if (!response.ok) {
+    logger.error('DocuSeal API request failed', {path, status: response.status});
+    throw new HttpsError('internal', 'DocuSeal request failed');
+  }
+  return body;
+}
+
+function signingUrlFromSubmission(submission, externalId, role) {
+  const submitter = normalizeSubmitters(submission).find((item) => item.externalId === externalId || item.role === role);
+  if (!submitter?.embedSrc) throw new HttpsError('failed-precondition', 'Signing link is not available');
+  return {signingUrl: submitter.embedSrc, submitterId: submitter.id};
+}
+
+async function createDocusealSubmission(contractId, transactionId, transaction, partyA, partyB) {
+  const templateId = Number(DOCUSEAL_TEMPLATE_DIRECT_PARTY_CONTRACT_ID.value());
+  if (!Number.isFinite(templateId) || templateId <= 0) {
+    throw new HttpsError('failed-precondition', 'DocuSeal template is not configured');
+  }
+  return docusealFetch('/submissions', {
+    method: 'POST',
+    body: JSON.stringify({
+      template_id: templateId,
+      send_email: false,
+      send_sms: false,
+      order: 'preserved',
+      external_id: `${transactionId}:${contractId}`,
+      submitters: [
+        {role: 'Party A', name: partyA.name, email: partyA.email, external_id: `${contractId}:partyA`, send_email: false, order: 0},
+        {role: 'Party B', name: partyB.name, email: partyB.email, external_id: `${contractId}:partyB`, send_email: false, order: 1},
+      ],
+      variables: {
+        transaction_id: transactionId,
+        contract_id: contractId,
+        transaction_type: transaction.type,
+        platform_role: 'facilitator',
+      },
+    }),
+  });
+}
+
+async function persistCompletedDocument(contractRef, contractId, submission) {
+  const documentsResponse = await docusealFetch(`/submissions/${submission.id}/documents?merge=true`, {method: 'GET'});
+  const documents = Array.isArray(documentsResponse?.documents) ? documentsResponse.documents : [];
+  const first = documents[0] || submission?.documents?.[0];
+  if (!first?.url) throw new Error('No signed document URL');
+  const response = await fetch(first.url);
+  if (!response.ok) throw new Error('Unable to download signed document');
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const storagePath = `contracts/${contractId}/signed/signed-contract.pdf`;
+  await getStorage().bucket().file(storagePath).save(buffer, {
+    contentType: 'application/pdf',
+    resumable: false,
+    metadata: {cacheControl: 'private, max-age=0, no-store'},
+  });
+  await contractRef.update({signedDocumentStoragePath: storagePath, updatedAt: FieldValue.serverTimestamp()});
+}
+
+async function stripeFetch(path, params) {
+  const body = new URLSearchParams(params);
+  const response = await fetch(`${STRIPE_API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${STRIPE_SECRET_KEY.value()}`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_) {
+    data = {raw: text};
+  }
+  if (!response.ok) {
+    logger.error('Stripe API request failed', {path, status: response.status});
+    throw new HttpsError('internal', 'Stripe checkout failed');
+  }
+  return data;
+}
+
+function registerContractFunctions(exports) {
+  exports.createDirectPartyContract = onCall({
+    enforceAppCheck: true,
+    secrets: [DOCUSEAL_API_KEY, DOCUSEAL_TEMPLATE_DIRECT_PARTY_CONTRACT_ID],
+  }, async (request) => {
+    const uid = requireCallableAuth(request);
+    assertObject(request.data);
+    const db = getFirestore();
+    const userData = await getUser(db, uid);
+    const staff = isStaffUser(userData, request.auth.token);
+    const tx = await resolveOrCreateTransaction(db, request.data, uid, staff);
+    if (!canManageTransaction(tx.data, uid, staff)) throw new HttpsError('permission-denied', 'Permission denied');
+
+    const contractRef = db.collection('contracts').doc(`${tx.id}_direct_party_contract`);
+    const contractId = contractRef.id;
+    const partyAExternalId = `${contractId}:partyA`;
+    const partyBExternalId = `${contractId}:partyB`;
+
+    await db.runTransaction(async (transaction) => {
+      const txSnap = await transaction.get(tx.ref);
+      if (!txSnap.exists) throw new HttpsError('not-found', 'Transaction not found');
+      const currentTx = txSnap.data() || {};
+      if (!canManageTransaction(currentTx, uid, staff)) throw new HttpsError('permission-denied', 'Permission denied');
+      const contractSnap = await transaction.get(contractRef);
+      if (contractSnap.exists) {
+        throw new HttpsError(
+          isOpenContractStatus(contractSnap.data()?.status) ? 'already-exists' : 'failed-precondition',
+          'Contract already exists for this transaction'
+        );
+      }
+      transaction.set(contractRef, {
+        transactionId: tx.id,
+        provider: 'docuseal',
+        providerSubmissionId: '',
+        type: 'direct_party_contract',
+        status: CONTRACT_STATUSES.DRAFT,
+        partyAUid: currentTx.parties.partyAUid,
+        partyBUid: currentTx.parties.partyBUid,
+        partyUserIds: [currentTx.parties.partyAUid, currentTx.parties.partyBUid],
+        partyAExternalId,
+        partyBExternalId,
+        partyASignedAt: null,
+        partyBSignedAt: null,
+        signedDocumentStoragePath: null,
+        expiresAt: Timestamp.fromDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
+        processedDocusealEvents: [],
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdByUid: uid,
+      });
+    });
+    await audit(db, contractRef, {type: 'contract_created', actorType: staff ? 'staff' : 'party', actorUid: uid, data: {transactionId: tx.id}});
+
+    const [partyAUser, partyBUser] = await Promise.all([
+      getUser(db, tx.data.parties.partyAUid),
+      getUser(db, tx.data.parties.partyBUid),
+    ]);
+    const partyA = {name: safeName(partyAUser, 'Party A'), email: safeEmail(partyAUser)};
+    const partyB = {name: safeName(partyBUser, 'Party B'), email: safeEmail(partyBUser)};
+    if (!partyA.email || !partyB.email) {
+      await contractRef.update({status: CONTRACT_STATUSES.FAILED, updatedAt: FieldValue.serverTimestamp()});
+      await audit(db, contractRef, {type: 'contract_failed', actorType: 'system', data: {reason: 'missing_signer_email'}});
+      throw new HttpsError('failed-precondition', 'Signer email is missing');
+    }
+
+    let submission;
+    try {
+      submission = await createDocusealSubmission(contractId, tx.id, tx.data, partyA, partyB);
+    } catch (error) {
+      await contractRef.update({status: CONTRACT_STATUSES.FAILED, updatedAt: FieldValue.serverTimestamp()});
+      await audit(db, contractRef, {type: 'docuseal_submission_failed', actorType: 'system', data: {transactionId: tx.id}});
+      throw error;
+    }
+    const partyASigning = signingUrlFromSubmission(submission, partyAExternalId, 'Party A');
+    const partyBSigning = signingUrlFromSubmission(submission, partyBExternalId, 'Party B');
+    await contractRef.update({
+      providerSubmissionId: String(submission.id),
+      status: CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE,
+      partyASubmitterId: partyASigning.submitterId,
+      partyBSubmitterId: partyBSigning.submitterId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await tx.ref.update({
+      dealStatus: TRANSACTION_STATUSES.IN_PROGRESS,
+      contractId,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await audit(db, contractRef, {type: 'docuseal_submission_created', actorType: 'system', data: {transactionId: tx.id, providerSubmissionId: String(submission.id)}});
+    await audit(db, tx.ref, {type: 'contract_attached', actorType: 'system', data: {contractId}});
+
+    if (uid !== tx.data.parties.partyAUid) {
+      return {transactionId: tx.id, contractId, status: CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE};
+    }
+    return {
+      transactionId: tx.id,
+      contractId,
+      status: CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE,
+      signingUrl: partyASigning.signingUrl,
+      signingParty: 'partyA',
+    };
+  });
+
+  exports.getContractSigningSession = onCall({
+    enforceAppCheck: true,
+    secrets: [DOCUSEAL_API_KEY],
+  }, async (request) => {
+    const uid = requireCallableAuth(request);
+    assertObject(request.data);
+    const contractId = assertString(request.data.contractId, 'contractId');
+    const db = getFirestore();
+    const snap = await db.collection('contracts').doc(contractId).get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Contract not found');
+    const contract = snap.data() || {};
+    if (TERMINAL_CONTRACT_STATUSES.has(contract.status)) throw new HttpsError('failed-precondition', 'Contract is closed');
+    let externalId;
+    let role;
+    let party;
+    if (contract.status === CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE && contract.partyAUid === uid) {
+      externalId = contract.partyAExternalId;
+      role = 'Party A';
+      party = 'partyA';
+    } else if (contract.status === CONTRACT_STATUSES.AWAITING_PARTY_B_SIGNATURE && contract.partyBUid === uid) {
+      externalId = contract.partyBExternalId;
+      role = 'Party B';
+      party = 'partyB';
+    } else {
+      throw new HttpsError('permission-denied', 'Signing is not available for this user');
+    }
+    const submission = await docusealFetch(`/submissions/${encodeURIComponent(contract.providerSubmissionId)}`, {method: 'GET'});
+    const signing = signingUrlFromSubmission(submission, externalId, role);
+    return {contractId, signingParty: party, signingUrl: signing.signingUrl, status: contract.status};
+  });
+
+  exports.docusealWebhook = onRequest({
+    secrets: [DOCUSEAL_API_KEY, DOCUSEAL_WEBHOOK_SECRET],
+  }, async (request, response) => {
+    if (request.method !== 'POST') return response.status(405).send('Method not allowed');
+    if (!verifyDocusealSignature(request.rawBody, request.get('X-Docuseal-Signature'), DOCUSEAL_WEBHOOK_SECRET.value())) {
+      return response.status(401).send('Unauthorized');
+    }
+    const event = request.body;
+    const submissionId = normalizeDocusealSubmissionId(event);
+    if (!submissionId) return response.status(400).send('Missing submission id');
+    const db = getFirestore();
+    const query = await db.collection('contracts').where('providerSubmissionId', '==', String(submissionId)).limit(1).get();
+    if (query.empty) return response.status(202).send('Ignored');
+    const contractRef = query.docs[0].ref;
+    const eventKey = buildWebhookEventKey(event);
+    const submission = await docusealFetch(`/submissions/${encodeURIComponent(submissionId)}`, {method: 'GET'});
+    let persistDocument = false;
+    let txRef = null;
+    let processed = false;
+
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(contractRef);
+      if (!snap.exists) return;
+      const contract = snap.data() || {};
+      if ((contract.processedDocusealEvents || []).includes(eventKey)) return;
+      processed = true;
+      const nextStatus = statusFromDocusealSubmission(contract, submission, normalizeDocusealEventType(event));
+      const submitters = normalizeSubmitters(submission);
+      const partyA = submitters.find((item) => item.externalId === contract.partyAExternalId || item.role === 'Party A');
+      const partyB = submitters.find((item) => item.externalId === contract.partyBExternalId || item.role === 'Party B');
+      persistDocument = nextStatus === CONTRACT_STATUSES.COMPLETED && contract.status !== CONTRACT_STATUSES.COMPLETED;
+      txRef = db.collection('transactions').doc(contract.transactionId);
+      transaction.update(contractRef, {
+        status: nextStatus,
+        partyASignedAt: partyA?.completedAt || contract.partyASignedAt || null,
+        partyBSignedAt: partyB?.completedAt || contract.partyBSignedAt || null,
+        expiresAt: submission.expire_at ? Timestamp.fromDate(new Date(submission.expire_at)) : contract.expiresAt,
+        processedDocusealEvents: FieldValue.arrayUnion(eventKey),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (nextStatus === CONTRACT_STATUSES.COMPLETED) {
+        transaction.update(txRef, {
+          dealStatus: TRANSACTION_STATUSES.AWAITING_PARTY_CONFIRMATIONS,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    });
+
+    if (!processed) return response.status(200).send('OK');
+    if (persistDocument) {
+      try {
+        await persistCompletedDocument(contractRef, contractRef.id, submission);
+      } catch (error) {
+        logger.error('Unable to persist signed contract document', {contractId: contractRef.id, providerSubmissionId: String(submissionId)});
+        await contractRef.update({status: CONTRACT_STATUSES.FAILED, updatedAt: FieldValue.serverTimestamp()});
+        await audit(db, contractRef, {type: 'signed_document_storage_failed', actorType: 'system', data: {providerSubmissionId: String(submissionId)}});
+        return response.status(200).send('OK');
+      }
+    }
+    await audit(db, contractRef, {type: normalizeDocusealEventType(event) || 'docuseal_webhook', actorType: 'provider', data: {providerSubmissionId: String(submissionId), eventKey}});
+    if (persistDocument && txRef) {
+      await audit(db, txRef, {type: 'contract_completed', actorType: 'provider', data: {contractId: contractRef.id}});
+    }
+    return response.status(200).send('OK');
+  });
+
+  exports.confirmTransactionCompletion = onCall({enforceAppCheck: true}, async (request) => {
+    const uid = requireCallableAuth(request);
+    assertObject(request.data);
+    const transactionId = assertString(request.data.transactionId, 'transactionId');
+    const db = getFirestore();
+    const ref = db.collection('transactions').doc(transactionId);
+    let completed = false;
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists) throw new HttpsError('not-found', 'Transaction not found');
+      const data = snap.data() || {};
+      if (!isParty(data, uid)) throw new HttpsError('permission-denied', 'Permission denied');
+      const updates = {updatedAt: FieldValue.serverTimestamp()};
+      if (data.parties.partyAUid === uid) {
+        if (data.completion?.partyAConfirmedAt) throw new HttpsError('already-exists', 'Already confirmed');
+        updates['completion.partyAConfirmedAt'] = FieldValue.serverTimestamp();
+      } else if (data.parties.partyBUid === uid) {
+        if (data.completion?.partyBConfirmedAt) throw new HttpsError('already-exists', 'Already confirmed');
+        updates['completion.partyBConfirmedAt'] = FieldValue.serverTimestamp();
+      }
+      const hasOtherConfirmation = data.parties.partyAUid === uid ?
+        !!data.completion?.partyBConfirmedAt :
+        !!data.completion?.partyAConfirmedAt;
+      if (hasOtherConfirmation) {
+        const commission = calculateCommission({type: data.type, currency: data.commission?.currency});
+        updates.dealStatus = TRANSACTION_STATUSES.COMPLETED;
+        updates.commission = {
+          ...(data.commission || {}),
+          amount: data.commission?.amount || commission.amount,
+          currency: data.commission?.currency || commission.currency,
+          ruleSnapshot: data.commission?.ruleSnapshot || commission.ruleSnapshot,
+          status: COMMISSION_STATUSES.DUE,
+        };
+        completed = true;
+      }
+      transaction.update(ref, updates);
+    });
+    await audit(db, ref, {type: completed ? 'transaction_completed' : 'transaction_completion_confirmed', actorType: 'party', actorUid: uid, data: {completed}});
+    return {transactionId, completed};
+  });
+
+  exports.reviewTransactionCompletion = onCall({enforceAppCheck: true}, async (request) => {
+    const uid = requireCallableAuth(request);
+    assertObject(request.data);
+    const transactionId = assertString(request.data.transactionId, 'transactionId');
+    const decision = assertString(request.data.decision, 'decision');
+    if (!['approve', 'reject', 'dispute'].includes(decision)) throw new HttpsError('invalid-argument', 'Invalid decision');
+    const db = getFirestore();
+    const user = await getUser(db, uid);
+    if (!isStaffUser(user, request.auth.token)) throw new HttpsError('permission-denied', 'Permission denied');
+    const ref = db.collection('transactions').doc(transactionId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Transaction not found');
+    const data = snap.data() || {};
+    const updates = {
+      'completion.reviewedByUid': uid,
+      'completion.reviewedAt': FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (decision === 'approve') {
+      const commission = calculateCommission({type: data.type, currency: data.commission?.currency});
+      updates.dealStatus = TRANSACTION_STATUSES.COMPLETED;
+      updates.commission = {
+        ...(data.commission || {}),
+        amount: data.commission?.amount || commission.amount,
+        currency: data.commission?.currency || commission.currency,
+        ruleSnapshot: data.commission?.ruleSnapshot || commission.ruleSnapshot,
+        status: COMMISSION_STATUSES.DUE,
+      };
+    } else {
+      updates.dealStatus = decision === 'dispute' ? TRANSACTION_STATUSES.DISPUTED : TRANSACTION_STATUSES.CANCELLED;
+    }
+    await ref.update(updates);
+    await audit(db, ref, {type: 'transaction_reviewed', actorType: 'staff', actorUid: uid, data: {decision}});
+    return {transactionId, decision};
+  });
+
+  exports.createCommissionCheckout = onCall({
+    enforceAppCheck: true,
+    secrets: [STRIPE_SECRET_KEY],
+  }, async (request) => {
+    const uid = requireCallableAuth(request);
+    assertObject(request.data);
+    const transactionId = assertString(request.data.transactionId, 'transactionId');
+    const db = getFirestore();
+    const ref = db.collection('transactions').doc(transactionId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Transaction not found');
+    const data = snap.data() || {};
+    const user = await getUser(db, uid);
+    if (uid !== data.commission?.payerUid && !isStaffUser(user, request.auth.token)) {
+      throw new HttpsError('permission-denied', 'Permission denied');
+    }
+    if (data.dealStatus !== TRANSACTION_STATUSES.COMPLETED || data.commission?.status !== COMMISSION_STATUSES.DUE) {
+      throw new HttpsError('failed-precondition', 'Commission is not due');
+    }
+    if (data.commission.checkoutSessionId && data.commission.checkoutExpiresAt?.toMillis?.() > Date.now()) {
+      throw new HttpsError('already-exists', 'Checkout session already open');
+    }
+    const successUrl = stringValue(process.env.STRIPE_SUCCESS_URL || 'https://example.com/commission/success');
+    const cancelUrl = stringValue(process.env.STRIPE_CANCEL_URL || 'https://example.com/commission/cancel');
+    const session = await stripeFetch('/checkout/sessions', {
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      'line_items[0][quantity]': '1',
+      'line_items[0][price_data][currency]': data.commission.currency,
+      'line_items[0][price_data][unit_amount]': String(data.commission.amount),
+      'line_items[0][price_data][product_data][name]': 'Orbix commission',
+      'metadata[transactionId]': transactionId,
+      'metadata[commissionType]': data.type,
+      'metadata[payerUid]': data.commission.payerUid,
+      'payment_intent_data[metadata][transactionId]': transactionId,
+      'payment_intent_data[metadata][commissionType]': data.type,
+      'payment_intent_data[metadata][payerUid]': data.commission.payerUid,
+    });
+    await ref.update({
+      'commission.status': COMMISSION_STATUSES.CHECKOUT_OPEN,
+      'commission.checkoutSessionId': session.id,
+      'commission.checkoutExpiresAt': Timestamp.fromMillis((session.expires_at || Math.floor(Date.now() / 1000) + 1800) * 1000),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await audit(db, ref, {type: 'commission_checkout_created', actorType: 'party', actorUid: uid, data: {checkoutSessionId: session.id}});
+    return {transactionId, checkoutUrl: session.url};
+  });
+
+  exports.stripeWebhook = onRequest({secrets: [STRIPE_WEBHOOK_SECRET]}, async (request, response) => {
+    if (request.method !== 'POST') return response.status(405).send('Method not allowed');
+    if (!verifyStripeSignature(request.rawBody, request.get('Stripe-Signature'), STRIPE_WEBHOOK_SECRET.value())) {
+      return response.status(401).send('Unauthorized');
+    }
+    const event = request.body;
+    const session = event?.data?.object || {};
+    const transactionId = stringValue(session.metadata?.transactionId);
+    if (!transactionId) return response.status(202).send('Ignored');
+    const db = getFirestore();
+    const ref = db.collection('transactions').doc(transactionId);
+    const snap = await ref.get();
+    if (!snap.exists) return response.status(202).send('Ignored');
+    const data = snap.data() || {};
+    if ((data.processedStripeEvents || []).includes(event.id)) return response.status(200).send('OK');
+    const updates = {processedStripeEvents: FieldValue.arrayUnion(event.id), updatedAt: FieldValue.serverTimestamp()};
+    let auditType = 'stripe_event_processed';
+    if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
+      updates['commission.status'] = COMMISSION_STATUSES.PAID;
+      updates['commission.checkoutSessionId'] = session.id;
+      updates['commission.paymentIntentId'] = session.payment_intent || null;
+      updates['commission.paidAt'] = FieldValue.serverTimestamp();
+      const invoiceRef = db.collection('commission_invoices').doc(`${transactionId}_${String(session.id).replace(/[^A-Za-z0-9_-]/g, '_')}`);
+      updates['commission.invoiceRef'] = invoiceRef.path;
+      await invoiceRef.set({
+        transactionId,
+        payerUid: data.commission?.payerUid || session.metadata?.payerUid || null,
+        amount: data.commission?.amount || session.amount_total || null,
+        currency: data.commission?.currency || session.currency || null,
+        checkoutSessionId: session.id,
+        paymentIntentId: session.payment_intent || null,
+        provider: 'stripe',
+        createdAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      auditType = 'commission_paid';
+    } else if (event.type === 'checkout.session.async_payment_failed') {
+      updates['commission.status'] = COMMISSION_STATUSES.FAILED;
+      auditType = 'commission_payment_failed';
+    } else if (event.type === 'checkout.session.expired') {
+      updates['commission.status'] = COMMISSION_STATUSES.DUE;
+      auditType = 'commission_checkout_expired';
+    }
+    await ref.update(updates);
+    await audit(db, ref, {type: auditType, actorType: 'provider', data: {stripeEventId: event.id, checkoutSessionId: session.id}});
+    return response.status(200).send('OK');
+  });
+
+  exports.expireContracts = onSchedule('every 60 minutes', async () => {
+    const db = getFirestore();
+    const snapshot = await db.collection('contracts')
+      .where('status', 'in', [
+        CONTRACT_STATUSES.DRAFT,
+        CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE,
+        CONTRACT_STATUSES.AWAITING_PARTY_B_SIGNATURE,
+      ])
+      .where('expiresAt', '<=', Timestamp.now())
+      .limit(100)
+      .get();
+    await Promise.all(snapshot.docs.map(async (doc) => {
+      if (!isOpenContractStatus(doc.data()?.status)) return;
+      await doc.ref.update({status: CONTRACT_STATUSES.EXPIRED, updatedAt: FieldValue.serverTimestamp()});
+      await audit(db, doc.ref, {type: 'contract_expired', actorType: 'system'});
+    }));
+  });
+}
+
+module.exports = {registerContractFunctions};

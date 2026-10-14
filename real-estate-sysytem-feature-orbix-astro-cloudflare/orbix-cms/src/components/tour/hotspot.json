@@ -1,0 +1,14 @@
+﻿{
+  "collectionName": "components_tour_hotspots",
+  "info": { "displayName": "Hotspot" },
+  "options": {},
+  "attributes": {
+    "hotspotType": { "type": "enumeration", "enum": ["info", "scene"], "default": "info", "required": true },
+    "label": { "type": "string", "required": true },
+    "text": { "type": "text" },
+    "pitch": { "type": "decimal", "required": true },
+    "yaw": { "type": "decimal", "required": true },
+    "targetSceneId": { "type": "string" },
+    "url": { "type": "string" }
+  }
+}

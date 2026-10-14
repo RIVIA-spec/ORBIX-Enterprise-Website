@@ -1,0 +1,12 @@
+{
+  "collectionName": "components_shared_icons",
+  "info": { "displayName": "Icon", "description": "Reusable Orbix icon metadata" },
+  "options": {},
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "key": { "type": "string", "required": true },
+    "asset": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
+    "alternativeText": { "type": "string" },
+    "category": { "type": "enumeration", "enum": ["service", "technology", "industry", "navigation", "social", "utility"], "default": "utility" }
+  }
+}

@@ -1,0 +1,27 @@
+﻿{
+    "collectionName":  "components_shared_navigation_groups",
+    "info":  {
+                 "displayName":  "Navigation Group"
+             },
+    "options":  {
+
+                },
+    "attributes":  {
+                       "title":  {
+                                     "type":  "string",
+                                     "required":  true
+                                 },
+                       "links":  {
+                                     "type":  "component",
+                                     "component":  "shared.link",
+                                     "repeatable":  true
+                                 },
+                       "url":  {
+                                   "type":  "string"
+                               },
+                       "displayAsDropdown":  {
+                                                 "type":  "boolean",
+                                                 "default":  false
+                                             }
+                   }
+}

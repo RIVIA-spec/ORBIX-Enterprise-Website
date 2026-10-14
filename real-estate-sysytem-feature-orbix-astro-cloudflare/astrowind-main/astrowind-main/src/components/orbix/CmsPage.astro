@@ -1,0 +1,77 @@
+---
+import Layout from '~/layouts/PageLayout.astro';
+import SectionRenderer from './SectionRenderer.astro';
+import { getBrandSettings, getCmsPage } from '~/lib/strapi/client';
+import { breadcrumbSchema, organizationSchema, safeJsonLd, webpageSchema, websiteSchema } from '~/lib/seo/schema';
+import { getCanonical } from '~/utils/permalinks';
+import { mediaUrl } from '~/lib/strapi/client';
+import { sanitizeCmsHtml } from '~/lib/content/sanitize';
+
+export interface Props {
+  pathname: string;
+  title?: string;
+  fallbackAllowed?: boolean;
+  page?: Awaited<ReturnType<typeof getCmsPage>>;
+}
+
+const { pathname, title, fallbackAllowed = true, page: providedPage } = Astro.props;
+const [page, brand] = await Promise.all([providedPage || getCmsPage(pathname, fallbackAllowed), getBrandSettings()]);
+const canonicalCandidate = page.seo?.canonicalPath?.trim();
+const canonical = canonicalCandidate?.startsWith('/')
+  ? String(getCanonical(canonicalCandidate))
+  : /^https?:\/\//i.test(canonicalCandidate || '')
+    ? (canonicalCandidate as string)
+    : String(getCanonical(pathname));
+const safeBody = sanitizeCmsHtml(page.body);
+const shareImageUrl = mediaUrl(page.seo?.shareImage);
+const metadata = {
+  title: page.seo?.metaTitle || page.title || title || brand.brandName,
+  description: page.seo?.metaDescription || page.summary || brand.entityDefinition,
+  canonical,
+  robots: { index: !page.seo?.noIndex, follow: !page.seo?.noFollow },
+  openGraph: {
+    type: page.schemaType === 'NewsArticle' || page.schemaType === 'Article' ? 'article' : 'website',
+    images: shareImageUrl ? [{ url: shareImageUrl }] : [],
+  },
+  twitter: { cardType: shareImageUrl ? 'summary_large_image' : 'summary' },
+};
+const crumbs =
+  pathname === '/'
+    ? [{ name: brand.brandName, url: canonical }]
+    : [
+        { name: brand.brandName, url: String(getCanonical('/')) },
+        { name: page.title || title || pathname, url: canonical },
+      ];
+const schemas = [
+  organizationSchema(brand, String(getCanonical('/'))),
+  websiteSchema(brand, String(getCanonical('/'))),
+  webpageSchema(page, canonical, brand),
+  breadcrumbSchema(crumbs),
+];
+---
+
+<Layout metadata={metadata}>
+  <Fragment slot="head">
+    {
+      page.seo?.focusKeyword && (
+        <meta name="keywords" content={[page.seo.focusKeyword, ...(page.seo.secondaryKeywords || [])].join(', ')} />
+      )
+    }
+    {page.seo?.aiSummary && <meta name="ai-summary" content={page.seo.aiSummary} />}
+    {page.seo?.answerSnippet && <meta name="answer-snippet" content={page.seo.answerSnippet} />}
+    {page.seo?.llmSummary && <meta name="llm-summary" content={page.seo.llmSummary} />}
+    <script is:inline type="application/ld+json" set:html={safeJsonLd(schemas)} />
+  </Fragment>
+  <SectionRenderer sections={page.sections} brand={brand} />
+  <slot />
+  {
+    !page.sections?.length && (
+      <section class="mx-auto max-w-5xl px-4 py-16 sm:px-6">
+        <p class="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-[var(--orbix-blue)]">Orbix</p>
+        <h1 class="text-4xl font-bold tracking-normal md:text-6xl">{page.title || title}</h1>
+        {page.summary && <p class="mt-5 max-w-3xl text-lg text-muted">{page.summary}</p>}
+        {safeBody && <article class="prose prose-lg mt-8 max-w-none dark:prose-invert" set:html={safeBody} />}
+      </section>
+    )
+  }
+</Layout>

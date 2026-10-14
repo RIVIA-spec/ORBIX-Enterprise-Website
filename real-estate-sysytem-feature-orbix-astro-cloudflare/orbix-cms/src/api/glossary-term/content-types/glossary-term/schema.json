@@ -1,0 +1,111 @@
+{
+  "kind": "collectionType",
+  "collectionName": "glossary_terms",
+  "info": {
+    "singularName": "glossary-term",
+    "pluralName": "glossary-terms",
+    "displayName": "Glossary Term"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "term": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "term",
+      "required": true
+    },
+    "definition": {
+      "type": "text",
+      "required": true
+    },
+    "entityType": {
+      "type": "string"
+    },
+    "relatedArticleSlugs": {
+      "type": "json"
+    },
+    "seoTitle": {
+      "type": "string"
+    },
+    "seoDescription": {
+      "type": "text"
+    },
+    "canonicalUrl": {
+      "type": "string"
+    },
+    "ogTitle": {
+      "type": "string"
+    },
+    "ogDescription": {
+      "type": "text"
+    },
+    "ogImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "twitterTitle": {
+      "type": "string"
+    },
+    "twitterDescription": {
+      "type": "text"
+    },
+    "robots": {
+      "type": "enumeration",
+      "enum": [
+        "index_follow",
+        "noindex_follow",
+        "index_nofollow",
+        "noindex_nofollow"
+      ]
+    },
+    "schemaType": {
+      "type": "enumeration",
+      "enum": [
+        "Article",
+        "BlogPosting",
+        "NewsArticle",
+        "CreativeWork",
+        "CollectionPage",
+        "ProfilePage",
+        "Report",
+        "DefinedTerm"
+      ]
+    },
+    "focusKeyword": {
+      "type": "string"
+    },
+    "secondaryKeywords": {
+      "type": "json"
+    },
+    "aiSummary": {
+      "type": "text"
+    },
+    "answerSnippet": {
+      "type": "text"
+    },
+    "llmSummary": {
+      "type": "text"
+    },
+    "entityMentions": {
+      "type": "json"
+    },
+    "geoTopics": {
+      "type": "json"
+    },
+    "geoQuestions": {
+      "type": "json"
+    },
+    "structuredDataOverride": {
+      "type": "json"
+    }
+  }
+}

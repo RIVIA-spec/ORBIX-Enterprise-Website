@@ -1,0 +1,188 @@
+{
+  "kind": "collectionType",
+  "collectionName": "projects",
+  "info": {
+    "singularName": "project",
+    "pluralName": "projects",
+    "displayName": "Project"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "arabicSlug": {
+      "type": "string"
+    },
+    "preferredSlugLanguage": {
+      "type": "enumeration",
+      "enum": [
+        "en",
+        "ar"
+      ],
+      "default": "en"
+    },
+    "excerpt": {
+      "type": "text",
+      "required": true
+    },
+    "coverImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "gallery": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "ownerName": {
+      "type": "string",
+      "required": true
+    },
+    "ownerType": {
+      "type": "enumeration",
+      "enum": [
+        "student",
+        "founder",
+        "engineer",
+        "creator",
+        "team",
+        "company"
+      ]
+    },
+    "universityOrCompany": {
+      "type": "string"
+    },
+    "discipline": {
+      "type": "string"
+    },
+    "projectType": {
+      "type": "string"
+    },
+    "body": {
+      "type": "json"
+    },
+    "toolsUsed": {
+      "type": "json"
+    },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "projects"
+    },
+    "tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "projects"
+    },
+    "keyTakeaways": {
+      "type": "json"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "draft",
+        "published",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "seoTitle": {
+      "type": "string"
+    },
+    "seoDescription": {
+      "type": "text"
+    },
+    "canonicalUrl": {
+      "type": "string"
+    },
+    "ogTitle": {
+      "type": "string"
+    },
+    "ogDescription": {
+      "type": "text"
+    },
+    "ogImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "twitterTitle": {
+      "type": "string"
+    },
+    "twitterDescription": {
+      "type": "text"
+    },
+    "robots": {
+      "type": "enumeration",
+      "enum": [
+        "index_follow",
+        "noindex_follow",
+        "index_nofollow",
+        "noindex_nofollow"
+      ]
+    },
+    "schemaType": {
+      "type": "enumeration",
+      "enum": [
+        "Article",
+        "BlogPosting",
+        "NewsArticle",
+        "CreativeWork",
+        "CollectionPage",
+        "ProfilePage",
+        "Report",
+        "DefinedTerm"
+      ]
+    },
+    "focusKeyword": {
+      "type": "string"
+    },
+    "secondaryKeywords": {
+      "type": "json"
+    },
+    "aiSummary": {
+      "type": "text"
+    },
+    "answerSnippet": {
+      "type": "text"
+    },
+    "llmSummary": {
+      "type": "text"
+    },
+    "entityMentions": {
+      "type": "json"
+    },
+    "geoTopics": {
+      "type": "json"
+    },
+    "geoQuestions": {
+      "type": "json"
+    },
+    "structuredDataOverride": {
+      "type": "json"
+    }
+  }
+}

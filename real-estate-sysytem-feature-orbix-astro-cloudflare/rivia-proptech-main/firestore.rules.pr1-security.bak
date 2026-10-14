@@ -1,0 +1,627 @@
+rules_version = '2';
+
+service cloud.firestore {
+match /databases/{database}/documents {
+
+// =========================================================
+// Helpers
+// =========================================================
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function userExists() {
+  return isSignedIn()
+    && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+}
+
+function getUserData() {
+  return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+}
+
+function hasRole(role) {
+  return userExists() && getUserData().role == role;
+}
+
+function isAppOwner() {
+  return hasRole('owner');
+}
+
+function isAdmin() {
+  return hasRole('admin');
+}
+
+function isStaff() {
+  return isAppOwner() || isAdmin();
+}
+
+function isCookieSettingsAdmin() {
+  return isAdmin() || isAppOwner();
+}
+
+function cookieSettingsKeys() {
+  return [
+    'enabled',
+    'version',
+    'policyLastUpdated',
+    'titleAr',
+    'descriptionAr',
+    'acceptAllLabelAr',
+    'rejectOptionalLabelAr',
+    'policyLinkLabelAr',
+    'essentialEnabled',
+    'analyticsEnabled',
+    'marketingEnabled',
+    'analyticsProviderName',
+    'marketingProviderName',
+    'bannerPosition',
+    'requireRenewedConsent',
+    'updatedAt',
+    'updatedBy'
+  ];
+}
+
+function validCookieConsentBase() {
+  return request.resource.data.keys().hasOnly(cookieSettingsKeys())
+    && request.resource.data.keys().hasAll(cookieSettingsKeys())
+    && request.resource.data.enabled is bool
+    && request.resource.data.version is int
+    && request.resource.data.version >= 1
+    && request.resource.data.policyLastUpdated is string
+    && request.resource.data.policyLastUpdated.size() > 0
+    && request.resource.data.policyLastUpdated.size() <= 40
+    && request.resource.data.titleAr is string
+    && request.resource.data.titleAr.size() > 0
+    && request.resource.data.titleAr.size() <= 120
+    && request.resource.data.descriptionAr is string
+    && request.resource.data.descriptionAr.size() > 0
+    && request.resource.data.descriptionAr.size() <= 1500
+    && request.resource.data.acceptAllLabelAr is string
+    && request.resource.data.acceptAllLabelAr.size() > 0
+    && request.resource.data.acceptAllLabelAr.size() <= 80
+    && request.resource.data.rejectOptionalLabelAr is string
+    && request.resource.data.rejectOptionalLabelAr.size() > 0
+    && request.resource.data.rejectOptionalLabelAr.size() <= 80
+    && request.resource.data.policyLinkLabelAr is string
+    && request.resource.data.policyLinkLabelAr.size() > 0
+    && request.resource.data.policyLinkLabelAr.size() <= 80
+    && request.resource.data.essentialEnabled == true
+    && request.resource.data.analyticsEnabled == false
+    && request.resource.data.marketingEnabled == false
+    && request.resource.data.analyticsProviderName is string
+    && request.resource.data.analyticsProviderName.size() <= 120
+    && request.resource.data.marketingProviderName is string
+    && request.resource.data.marketingProviderName.size() <= 120
+    && request.resource.data.bannerPosition in ['bottom-right', 'bottom-center']
+    && request.resource.data.requireRenewedConsent is bool
+    && request.resource.data.updatedBy is string
+    && request.resource.data.updatedBy == request.auth.uid
+    && request.resource.data.updatedAt is timestamp
+    && request.resource.data.updatedAt == request.time;
+}
+
+function validCookieConsentCreate() {
+  return validCookieConsentBase()
+    && request.resource.data.version == 1;
+}
+
+function validCookieConsentUpdate() {
+  return validCookieConsentBase()
+    && request.resource.data.version >= resource.data.version
+    && request.resource.data.version <= resource.data.version + 1;
+}
+
+function protectedUserFields() {
+  return [
+    'role',
+    'isAdmin',
+    'isOwner',
+    'isAppOwner',
+    'isStaff',
+    'staff',
+    'verified',
+    'isVerified',
+    'verificationStatus',
+    'permissions',
+    'admin',
+    'owner'
+  ];
+}
+
+function protectedPropertyFields() {
+  return [
+    'status',
+    'approved',
+    'approvalStatus',
+    'isApproved',
+    'isVisible',
+    'isHidden',
+    'isFeatured',
+    'isDistinct',
+    'promoted',
+    'rejected',
+    'rejectionReason',
+    'moderationStatus',
+    'adminNote',
+    'ownerId',
+    'ownerUserId',
+    'userId',
+    'createdBy',
+    'postedBy',
+    'ownerUid',
+    'created_by'
+  ];
+}
+
+function propertyRequestModerationFields() {
+  return [
+    'status',
+    'approved',
+    'approvalStatus',
+    'isApproved',
+    'isVisible',
+    'isHidden',
+    'isFeatured',
+    'isDistinct',
+    'promoted',
+    'rejected',
+    'rejectionReason',
+    'moderationStatus',
+    'adminNote'
+  ];
+}
+
+function isSafeUserCreate(userId) {
+  return isSignedIn()
+    && request.auth.uid == userId
+
+    // role must be absent or normal user only
+    && (
+      !('role' in request.resource.data)
+      || request.resource.data.role == 'user'
+    )
+
+    // admin/owner/staff flags must not be true
+    && (
+      !('isAdmin' in request.resource.data)
+      || request.resource.data.isAdmin == false
+    )
+    && (
+      !('isOwner' in request.resource.data)
+      || request.resource.data.isOwner == false
+    )
+    && (
+      !('isAppOwner' in request.resource.data)
+      || request.resource.data.isAppOwner == false
+    )
+    && (
+      !('isStaff' in request.resource.data)
+      || request.resource.data.isStaff == false
+    )
+    && (
+      !('staff' in request.resource.data)
+      || request.resource.data.staff == false
+    )
+    && (
+      !('admin' in request.resource.data)
+      || request.resource.data.admin == false
+    )
+    && (
+      !('owner' in request.resource.data)
+      || request.resource.data.owner == false
+    )
+
+    // verification fields must not be granted by the user
+    && (
+      !('isVerified' in request.resource.data)
+      || request.resource.data.isVerified == false
+    )
+    && (
+      !('verified' in request.resource.data)
+      || request.resource.data.verified == false
+    )
+    && (
+      !('verificationStatus' in request.resource.data)
+      || request.resource.data.verificationStatus in ['none', 'unverified', 'pending', 'rejected']
+    )
+
+    // permissions map is protected
+    && !request.resource.data.keys().hasAny(['permissions']);
+}
+
+function isSelfSafeUserUpdate(userId) {
+  return isSignedIn()
+    && request.auth.uid == userId
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedUserFields());
+}
+
+function isOwnerRoleChange() {
+  return request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+    && (
+      resource.data.role == 'owner'
+      || request.resource.data.role == 'owner'
+    );
+}
+
+function isVerifiedUser() {
+  return userExists() && getUserData().isVerified == true;
+}
+
+function isUserVerified(userId) {
+  return exists(/databases/$(database)/documents/users/$(userId))
+    && get(/databases/$(database)/documents/users/$(userId)).data.isVerified == true;
+}
+
+function isResourceOwner() {
+  return isSignedIn() && request.auth.uid == resource.data.ownerId;
+}
+
+function isSafeOwnerPropertyUpdate() {
+  return isResourceOwner()
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedPropertyFields());
+}
+
+function isDealParty() {
+  return isSignedIn()
+    && (
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+}
+
+function isPropertyRequestOwnerCreate() {
+  return isSignedIn()
+    && (
+      request.resource.data.ownerId == request.auth.uid ||
+      request.resource.data.ownerUserId == request.auth.uid ||
+      request.resource.data.userId == request.auth.uid ||
+      request.resource.data.createdBy == request.auth.uid ||
+      request.resource.data.postedBy == request.auth.uid ||
+      request.resource.data.ownerUid == request.auth.uid ||
+      request.resource.data.created_by == request.auth.uid
+    );
+}
+
+function isPropertyRequestResourceOwner() {
+  return isSignedIn()
+    && (
+      request.auth.uid == resource.data.ownerId ||
+      request.auth.uid == resource.data.ownerUserId ||
+      request.auth.uid == resource.data.userId ||
+      request.auth.uid == resource.data.createdBy ||
+      request.auth.uid == resource.data.postedBy ||
+      request.auth.uid == resource.data.ownerUid ||
+      request.auth.uid == resource.data.created_by
+    );
+}
+
+function isPropertyRequestOwnerSafeUpdate() {
+  return isPropertyRequestResourceOwner()
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(propertyRequestModerationFields());
+}
+
+// =========================================================
+// users
+// =========================================================
+match /users/{userId} {
+  allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+
+  allow create: if isSafeUserCreate(userId) || isStaff();
+
+  allow update: if isSelfSafeUserUpdate(userId)
+    || isAppOwner()
+    || (
+      isAdmin()
+      && !isOwnerRoleChange()
+    );
+
+  allow delete: if isAppOwner();
+}
+
+// =========================================================
+// notifications
+// =========================================================
+match /users/{userId}/notifications/{notifId} {
+  allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+
+  allow update: if isSignedIn()
+    && request.auth.uid == userId
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+    && request.resource.data.read == true
+    && resource.data.read == false;
+
+  allow create, delete: if isStaff();
+}
+
+// =========================================================
+// favorites
+// =========================================================
+match /users/{userId}/favorites/{propertyId} {
+  allow read, write: if isSignedIn() && request.auth.uid == userId;
+}
+
+// =========================================================
+// user_bookings
+// =========================================================
+match /users/{userId}/user_bookings/{bookingId} {
+  allow create: if isSignedIn() && request.auth.uid == userId;
+  allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+  allow update, delete: if isStaff();
+}
+
+// Collection group support for admin dashboard queries:
+// collectionGroup("user_bookings")
+match /{path=**}/user_bookings/{bookingId} {
+  allow read: if isStaff();
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// verifications
+// =========================================================
+match /verifications/{verifId} {
+  allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+  allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isStaff());
+  allow update: if isStaff();
+  allow delete: if isSignedIn()
+    && request.auth.uid == resource.data.userId
+    && resource.data.status == 'rejected';
+}
+
+// =========================================================
+// features
+// =========================================================
+match /features/global {
+  allow read: if true;
+  allow write: if isStaff();
+}
+
+// =========================================================
+// property_category
+// =========================================================
+match /property_category/{id} {
+  allow read: if true;
+  allow write: if isStaff();
+}
+
+// =========================================================
+// properties
+// =========================================================
+match /properties/{propId} {
+  allow read: if true;
+  allow create: if isStaff();
+  allow update: if isStaff() || isSafeOwnerPropertyUpdate();
+  allow delete: if isStaff() || isResourceOwner();
+
+  match /panorama_tour/{docId} {
+    allow read: if true;
+    allow write: if isStaff();
+  }
+
+  match /comments/{commentId} {
+    allow read: if true;
+    allow create: if isSignedIn();
+    allow update, delete: if isStaff() || (isSignedIn() && request.auth.uid == resource.data.userId);
+  }
+
+  match /ratings/{userId} {
+    allow read: if true;
+    allow create, update: if isSignedIn() && request.auth.uid == userId;
+  }
+
+  // ØªÙˆØ§ÙÙ‚ Ù…Ø¹ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ Ø§Ù„Ø­Ø§Ù„ÙŠ
+  match /bookings/{bookingId} {
+    allow create: if isSignedIn()
+      && (
+        isStaff() ||
+        request.resource.data.customerUserId == request.auth.uid
+      );
+
+    allow read: if isSignedIn()
+      && (
+        isStaff() ||
+        request.auth.uid == resource.data.customerUserId ||
+        request.auth.uid == resource.data.ownerUserId
+      );
+
+    allow update, delete: if isStaff();
+  }
+
+  match /{anyPath=**} {
+    allow read: if true;
+    allow write: if isStaff();
+  }
+}
+
+// =========================================================
+// property_requests
+// =========================================================
+match /property_requests/{requestId} {
+  allow create: if isStaff()
+    || (
+      isVerifiedUser()
+      && isPropertyRequestOwnerCreate()
+    );
+
+  allow read: if isSignedIn()
+    && (
+      isPropertyRequestResourceOwner()
+      || isStaff()
+    );
+
+  allow update: if isStaff() || isPropertyRequestOwnerSafeUpdate();
+
+  allow delete: if isStaff();
+
+  match /{anyPath=**} {
+    allow read, write: if isStaff()
+      || (
+        isSignedIn()
+        && request.auth.uid == get(/databases/$(database)/documents/property_requests/$(requestId)).data.ownerId
+      );
+  }
+}
+
+// =========================================================
+// requests
+// =========================================================
+match /requests/{reqId} {
+  allow create: if isSignedIn();
+  allow read: if isStaff()
+    || (isSignedIn()
+      && (
+        request.auth.uid == resource.data.renterId ||
+        request.auth.uid == resource.data.ownerId
+      ));
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// settings
+// =========================================================
+match /settings/{docId} {
+  allow read: if true;
+  allow write: if isAppOwner();
+}
+
+// =========================================================
+// app_settings / cookie_consent
+// =========================================================
+match /app_settings/cookie_consent {
+  allow read: if true;
+  allow create: if isCookieSettingsAdmin() && validCookieConsentCreate();
+  allow update: if isCookieSettingsAdmin() && validCookieConsentUpdate();
+  allow delete: if false;
+}
+
+// =========================================================
+// report_reasons
+// =========================================================
+match /report_reasons/{reasonId} {
+  allow read: if true;
+  allow write: if isStaff();
+}
+
+// =========================================================
+// reports
+// =========================================================
+match /property_reports/{reportId} {
+  allow create: if isSignedIn();
+  allow read, update, delete: if isStaff();
+}
+
+match /hotel_reports/{reportId} {
+  allow create: if isSignedIn();
+  allow read, update, delete: if isStaff();
+}
+
+// =========================================================
+// deals
+// =========================================================
+match /deals/{dealId} {
+  allow create: if isSignedIn()
+    && (
+      isStaff() ||
+      (
+        request.resource.data.customerUserId == request.auth.uid &&
+        isVerifiedUser()
+      )
+    );
+
+  allow read: if isSignedIn() && (isStaff() || isDealParty());
+  allow update: if isSignedIn() && (isStaff() || isDealParty());
+  allow delete: if isStaff();
+}
+
+// =========================================================
+// contracts
+// =========================================================
+match /contracts/{contractId} {
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+
+  // Ù…Ù† Cloud Functions ÙÙ‚Ø·
+  allow create, update, delete: if false;
+}
+
+// =========================================================
+// invoices
+// =========================================================
+match /invoices/{invoiceId} {
+  allow create: if isStaff();
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// manual_payments
+// =========================================================
+match /manual_payments/{paymentId} {
+  allow create: if isSignedIn()
+    && request.resource.data.customerUserId == request.auth.uid;
+
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// mail
+// =========================================================
+match /mail/{mailId} {
+  allow read, write: if isStaff();
+}
+
+// =========================================================
+// ads
+// =========================================================
+match /ads/{adId} {
+  allow read: if true;
+  allow create, update, delete: if isStaff();
+}
+
+// =========================================================
+// hotels
+// =========================================================
+match /hotels/{hotelId} {
+  allow read: if true;
+  allow create, update, delete: if isStaff();
+
+  match /room_types/{roomTypeId} {
+    allow read: if true;
+    allow create, update, delete: if isAdmin() || isAppOwner();
+
+    match /panorama_tour/{docId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /bookings/{bookingId} {
+      allow read, create, update, delete: if isStaff();
+    }
+  }
+}
+
+// =========================================================
+// fcm_notification_requests
+// =========================================================
+match /fcm_notification_requests/{requestId} {
+  allow create, read, update, delete: if isStaff();
+}
+
+}
+}

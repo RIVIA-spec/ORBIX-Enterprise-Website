@@ -1,0 +1,162 @@
+const crypto = require('crypto');
+
+const CONTRACT_STATUSES = Object.freeze({
+  DRAFT: 'draft',
+  AWAITING_PARTY_A_SIGNATURE: 'awaiting_party_a_signature',
+  AWAITING_PARTY_B_SIGNATURE: 'awaiting_party_b_signature',
+  COMPLETED: 'completed',
+  DECLINED: 'declined',
+  EXPIRED: 'expired',
+  FAILED: 'failed',
+});
+
+const TRANSACTION_STATUSES = Object.freeze({
+  DRAFT: 'draft',
+  IN_PROGRESS: 'in_progress',
+  AWAITING_PARTY_CONFIRMATIONS: 'awaiting_party_confirmations',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  DISPUTED: 'disputed',
+});
+
+const COMMISSION_STATUSES = Object.freeze({
+  NOT_DUE: 'not_due',
+  DUE: 'due',
+  CHECKOUT_OPEN: 'checkout_open',
+  PAID: 'paid',
+  FAILED: 'failed',
+  WAIVED: 'waived',
+});
+
+const TERMINAL_CONTRACT_STATUSES = new Set([
+  CONTRACT_STATUSES.COMPLETED,
+  CONTRACT_STATUSES.DECLINED,
+  CONTRACT_STATUSES.EXPIRED,
+  CONTRACT_STATUSES.FAILED,
+]);
+
+const OPEN_CONTRACT_STATUSES = new Set([
+  CONTRACT_STATUSES.DRAFT,
+  CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE,
+  CONTRACT_STATUSES.AWAITING_PARTY_B_SIGNATURE,
+]);
+
+function isOpenContractStatus(status) {
+  return OPEN_CONTRACT_STATUSES.has(String(status || ''));
+}
+
+function normalizeDocusealEventType(event) {
+  return String(event?.event_type || event?.eventType || event?.type || '').trim();
+}
+
+function normalizeDocusealSubmissionId(event) {
+  const data = event?.data || {};
+  return String(
+    data.submission_id ||
+      data.submissionId ||
+      data.submission?.id ||
+      data.id ||
+      event?.submission_id ||
+      ''
+  ).trim();
+}
+
+function normalizeSubmitters(submission) {
+  const submitters = Array.isArray(submission?.submitters) ? submission.submitters : [];
+  return submitters.map((submitter) => ({
+    id: submitter.id == null ? '' : String(submitter.id),
+    externalId: String(submitter.external_id || '').trim(),
+    role: String(submitter.role || '').trim(),
+    status: String(submitter.status || '').trim().toLowerCase(),
+    completedAt: submitter.completed_at || null,
+    declinedAt: submitter.declined_at || null,
+    embedSrc: submitter.embed_src || '',
+  }));
+}
+
+function statusFromDocusealSubmission(contract, submission, eventType = '') {
+  const submitters = normalizeSubmitters(submission);
+  if (eventType === 'submission.expired') return CONTRACT_STATUSES.EXPIRED;
+  if (eventType === 'form.declined' || submitters.some((item) => item.status === 'declined')) {
+    return CONTRACT_STATUSES.DECLINED;
+  }
+  if (submitters.length > 0 && submitters.every((item) => item.status === 'completed')) {
+    return CONTRACT_STATUSES.COMPLETED;
+  }
+  const partyA = submitters.find((item) =>
+    item.externalId === contract?.partyAExternalId || item.role === 'Party A'
+  );
+  if (partyA?.status === 'completed') return CONTRACT_STATUSES.AWAITING_PARTY_B_SIGNATURE;
+  return CONTRACT_STATUSES.AWAITING_PARTY_A_SIGNATURE;
+}
+
+function buildWebhookEventKey(event) {
+  const eventType = normalizeDocusealEventType(event) || 'unknown';
+  const data = event?.data || {};
+  const rawId = event?.id || data.event_id || data.id || data.uuid || '';
+  const submissionId = normalizeDocusealSubmissionId(event);
+  const submitterId = data.submitter_id || data.submitter?.id || data.submitter?.uuid || '';
+  const timestamp = event?.timestamp || data.event_timestamp || data.updated_at || '';
+  return crypto.createHash('sha256').update(`${eventType}|${rawId}|${submissionId}|${submitterId}|${timestamp}`).digest('hex');
+}
+
+function verifyDocusealSignature(rawBody, header, secret, nowMs = Date.now()) {
+  if (!rawBody || !header || !secret) return false;
+  const parts = String(header).split('.');
+  if (parts.length !== 2) return false;
+  const timestamp = Number(parts[0]);
+  const signature = parts[1];
+  if (!Number.isFinite(timestamp) || !signature) return false;
+  if (Math.abs(nowMs / 1000 - timestamp) > 300) return false;
+  const payload = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody);
+  const expected = crypto.createHmac('sha256', secret).update(`${parts[0]}.${payload}`).digest('hex');
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(signature);
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+function verifyStripeSignature(rawBody, header, secret, nowMs = Date.now()) {
+  if (!rawBody || !header || !secret) return false;
+  const parts = String(header).split(',').reduce((acc, item) => {
+    const [key, value] = item.split('=');
+    if (key && value) acc[key] = value;
+    return acc;
+  }, {});
+  const timestamp = Number(parts.t);
+  const signature = parts.v1;
+  if (!Number.isFinite(timestamp) || !signature) return false;
+  if (Math.abs(nowMs / 1000 - timestamp) > 300) return false;
+  const payload = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody);
+  const expected = crypto.createHmac('sha256', secret).update(`${parts.t}.${payload}`).digest('hex');
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(signature);
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+function calculateCommission(source) {
+  const currency = String(source?.currency || 'usd').toLowerCase();
+  const type = String(source?.type || '');
+  if (type === 'hotel_booking') {
+    return {amount: 500, currency, ruleSnapshot: {type: 'fixed', amount: 500, currency, source: 'mvp_hotel_booking'}};
+  }
+  if (type === 'property_rental') {
+    return {amount: 1000, currency, ruleSnapshot: {type: 'fixed', amount: 1000, currency, source: 'mvp_property_rental'}};
+  }
+  return {amount: 2500, currency, ruleSnapshot: {type: 'fixed', amount: 2500, currency, source: 'mvp_property_sale'}};
+}
+
+module.exports = {
+  CONTRACT_STATUSES,
+  TRANSACTION_STATUSES,
+  COMMISSION_STATUSES,
+  TERMINAL_CONTRACT_STATUSES,
+  isOpenContractStatus,
+  normalizeDocusealEventType,
+  normalizeDocusealSubmissionId,
+  normalizeSubmitters,
+  statusFromDocusealSubmission,
+  buildWebhookEventKey,
+  verifyDocusealSignature,
+  verifyStripeSignature,
+  calculateCommission,
+};

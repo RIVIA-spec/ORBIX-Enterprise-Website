@@ -1,0 +1,14 @@
+﻿{
+  "collectionName": "components_tour_panorama_scenes",
+  "info": { "displayName": "Panorama Scene" },
+  "options": {},
+  "attributes": {
+    "sceneId": { "type": "string", "required": true },
+    "label": { "type": "string", "required": true },
+    "panorama": { "type": "media", "multiple": false, "required": true, "allowedTypes": ["images"] },
+    "pitch": { "type": "decimal" },
+    "yaw": { "type": "decimal" },
+    "hfov": { "type": "decimal" },
+    "hotspots": { "type": "component", "component": "tour.hotspot", "repeatable": true }
+  }
+}

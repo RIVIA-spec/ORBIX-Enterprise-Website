@@ -1,0 +1,363 @@
+﻿---
+import type { BrandSettings } from '~/lib/strapi/types';
+import { normalizeBrandSettings } from '~/lib/strapi/brand';
+import { mediaUrl } from '~/lib/strapi/client';
+
+export interface Props {
+  brand: BrandSettings;
+}
+
+const { brand } = Astro.props;
+const options = brand.designOptions || {};
+const { tokens: c, typography: t } = normalizeBrandSettings(brand, mediaUrl);
+const radius =
+  ({ none: '0', sm: '0.25rem', md: '0.5rem', lg: '0.5rem' } as const)[
+    options.borderRadius as 'none' | 'sm' | 'md' | 'lg'
+  ] || '0.5rem';
+const shadow =
+  ({ none: 'none', soft: '0 20px 60px rgb(18 72 130 / 0.12)', medium: '0 24px 70px rgb(0 20 55 / 0.2)' } as const)[
+    options.shadowStyle as 'none' | 'soft' | 'medium'
+  ] || '0 20px 60px rgb(18 72 130 / 0.12)';
+
+const css = `
+  :root {
+    --aw-font-sans:
+      var(--font-ibm-plex-sans-arabic),
+      var(--font-ibm-plex-sans),
+      ${t.arabicFont},
+      ${t.englishFont},
+      system-ui,
+      sans-serif;
+
+    --aw-font-serif: var(--aw-font-sans);
+    --aw-font-heading: var(--aw-font-sans);
+
+    --orbix-font-arabic:
+      var(--font-ibm-plex-sans-arabic),
+      ${t.arabicFont},
+      system-ui,
+      sans-serif;
+
+    --orbix-font-code:
+      var(--font-ibm-plex-mono),
+      ${t.codeFont},
+      ui-monospace,
+      monospace;
+
+    --orbix-blue: ${c.primaryBlue};
+    --orbix-blue-light: ${c.blueLight};
+    --orbix-interaction: ${c.interaction};
+
+    --orbix-page: ${c.pageBackground};
+    --orbix-surface: ${c.surface};
+    --orbix-surface-soft: ${c.surfaceSoft};
+    --orbix-copy: ${c.bodyTextColor};
+    --orbix-heading: ${c.headingColor};
+    --orbix-muted: ${c.mutedTextColor};
+    --orbix-border: ${c.borderColor};
+    --orbix-white: ${c.white};
+    --orbix-shadow: ${shadow};
+    --orbix-radius: ${radius};
+    --orbix-pattern-color: ${c.primaryBlue};
+
+    --orbix-dark: var(--orbix-page);
+    --orbix-navy: ${c.navy};
+
+    --aw-color-primary: var(--orbix-blue);
+    --aw-color-secondary: var(--orbix-blue-light);
+    --aw-color-accent: var(--orbix-interaction);
+    --aw-color-text-heading: var(--orbix-heading);
+    --aw-color-text-default: var(--orbix-copy);
+    --aw-color-text-muted: var(--orbix-muted);
+    --aw-color-bg-page: var(--orbix-page);
+    --aw-color-bg-page-dark: var(--orbix-page);
+
+    font-size: ${t.baseTextSize};
+    line-height: ${t.lineHeight};
+    letter-spacing: 0;
+  }
+
+  html.dark {
+    --orbix-page: ${c.dark};
+    --orbix-surface: ${c.surface === c.white ? '#071a3a' : c.surface};
+    --orbix-surface-soft: #0b244b;
+    --orbix-copy: ${c.darkBodyText};
+    --orbix-heading: ${c.white};
+    --orbix-muted: ${c.darkMutedText};
+    --orbix-border: ${c.borderColor};
+    --orbix-shadow: 0 20px 70px rgb(0 0 0 / 0.34);
+    --orbix-pattern-color: ${c.primaryBlue};
+    --orbix-dark: var(--orbix-page);
+    --orbix-navy: ${c.dark};
+
+    --aw-color-text-heading: var(--orbix-heading);
+    --aw-color-text-default: var(--orbix-copy);
+    --aw-color-text-muted: var(--orbix-muted);
+    --aw-color-bg-page: var(--orbix-page);
+    --aw-color-bg-page-dark: var(--orbix-page);
+  }
+
+  html,
+  body,
+  main {
+    background-color: var(--orbix-page);
+    color: var(--orbix-copy);
+  }
+
+  html,
+  body {
+    transition:
+      background-color 180ms ease,
+      color 180ms ease;
+  }
+
+  body {
+    min-width: 320px;
+    font-family: var(--aw-font-sans);
+  }
+
+  html[lang='ar'],
+  html[dir='rtl'] {
+    --aw-font-sans: var(--orbix-font-arabic);
+    --aw-font-heading: var(--orbix-font-arabic);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--orbix-heading);
+  }
+
+  code,
+  pre {
+    font-family: var(--orbix-font-code);
+  }
+
+  ::selection {
+    background: var(--orbix-blue);
+    color: #ffffff;
+  }
+`;
+---
+
+<style is:inline set:html={css}></style>
+
+<!-- ORBIX_COMPLETE_DARK_MODE -->
+<style is:global>
+  /* ===============================================
+     Complete Orbix Light/Dark mode
+     =============================================== */
+
+  html,
+  body,
+  main,
+  main section,
+  #header,
+  #header > div {
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+  }
+
+  /* Light mode */
+  html:not(.dark),
+  html:not(.dark) body,
+  html:not(.dark) main,
+  html:not(.dark) main section {
+    background-color: var(--orbix-page);
+    color: var(--orbix-copy);
+  }
+
+  html:not(.dark) #header {
+    background-color: rgb(255 255 255 / 0.94) !important;
+    border-color: var(--orbix-border) !important;
+    color: var(--orbix-navy) !important;
+  }
+
+  html:not(.dark) #header nav,
+  html:not(.dark) #header nav a,
+  html:not(.dark) #header nav button {
+    color: var(--orbix-copy);
+  }
+
+  html:not(.dark) #header nav a:hover,
+  html:not(.dark) #header nav button:hover {
+    color: var(--orbix-blue);
+  }
+
+  html:not(.dark) .orbix-logo__name {
+    color: var(--orbix-blue) !important;
+  }
+
+  html:not(.dark) .orbix-logo__tagline {
+    color: #31557f !important;
+  }
+
+  /* Complete dark mode */
+  html.dark {
+    color-scheme: dark;
+    background-color: var(--orbix-page) !important;
+  }
+
+  html.dark body,
+  html.dark main {
+    background-color: var(--orbix-page) !important;
+    color: var(--orbix-copy) !important;
+  }
+
+  html.dark main section {
+    background-color: var(--orbix-page) !important;
+    border-color: rgb(121 181 255 / 0.15) !important;
+    color: var(--orbix-copy) !important;
+  }
+
+  html.dark #header,
+  html.dark #header > div {
+    background-color: rgb(3 6 33 / 0.95) !important;
+    border-color: rgb(121 181 255 / 0.16) !important;
+    color: var(--orbix-white) !important;
+  }
+
+  html.dark #header nav,
+  html.dark #header nav a,
+  html.dark #header nav button {
+    color: var(--orbix-white) !important;
+  }
+
+  html.dark #header nav a:hover,
+  html.dark #header nav button:hover,
+  html.dark #header .aw-link-active {
+    color: var(--orbix-blue-light) !important;
+  }
+
+  html.dark main h1,
+  html.dark main h2,
+  html.dark main h3,
+  html.dark main h4,
+  html.dark main h5,
+  html.dark main h6 {
+    color: var(--orbix-heading) !important;
+  }
+
+  html.dark main p,
+  html.dark main li,
+  html.dark main dt,
+  html.dark main dd {
+    color: var(--orbix-muted);
+  }
+
+  html.dark main strong {
+    color: var(--orbix-heading);
+  }
+
+  html.dark main article,
+  html.dark main [class*='bg-[var(--orbix-surface)]'] {
+    border-color: var(--orbix-border) !important;
+    background-color: var(--orbix-surface) !important;
+    color: var(--orbix-copy) !important;
+  }
+
+  html.dark main a[class*='rounded-lg'] {
+    border-color: var(--orbix-border) !important;
+    background-color: var(--orbix-surface);
+  }
+
+  html.dark main a[class*='rounded-lg']:hover {
+    border-color: var(--orbix-blue) !important;
+    background-color: #0b244b !important;
+  }
+
+  html.dark main .prose,
+  html.dark main .prose p,
+  html.dark main .prose li {
+    color: var(--orbix-muted) !important;
+  }
+
+  html.dark main .prose h1,
+  html.dark main .prose h2,
+  html.dark main .prose h3,
+  html.dark main .prose strong {
+    color: var(--orbix-heading) !important;
+  }
+
+  /* Keep primary actions blue */
+  html.dark .btn-primary,
+  html.dark a[class*='bg-primary'],
+  html.dark button[class*='bg-primary'] {
+    border-color: var(--orbix-blue) !important;
+    background-color: var(--orbix-blue) !important;
+    color: var(--orbix-white) !important;
+  }
+
+  html.dark .btn-primary:hover,
+  html.dark a[class*='bg-primary']:hover,
+  html.dark button[class*='bg-primary']:hover {
+    border-color: #2e8cff !important;
+    background-color: #2e8cff !important;
+  }
+
+  /* Footer remains properly dark */
+  footer {
+    background-color: var(--orbix-dark) !important;
+    color: var(--orbix-white);
+  }
+
+  footer a,
+  footer p,
+  footer span {
+    color: var(--orbix-muted);
+  }
+
+  footer a:hover {
+    color: var(--orbix-blue-light);
+  }
+
+  /* Force a visible theme icon without depending on astro-icon */
+  .orbix-theme-toggle {
+    position: relative;
+    color: var(--orbix-navy) !important;
+  }
+
+  .orbix-theme-toggle svg {
+    display: none !important;
+  }
+
+  .orbix-theme-toggle::before {
+    content: '☾';
+    display: grid;
+    place-items: center;
+    color: var(--orbix-navy);
+    font-family: Arial, sans-serif;
+    font-size: 1.65rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  html.dark .orbix-theme-toggle {
+    border-color: rgb(255 255 255 / 0.25) !important;
+    background-color: var(--orbix-surface) !important;
+  }
+
+  html.dark .orbix-theme-toggle::before {
+    content: '☀';
+    color: var(--orbix-white);
+    font-size: 1.25rem;
+  }
+
+  html.dark .orbix-logo__name {
+    color: var(--orbix-white) !important;
+  }
+
+  html.dark .orbix-logo__tagline {
+    color: rgb(255 255 255 / 0.65) !important;
+  }
+
+  html.dark .orbix-logo__symbol {
+    color: var(--orbix-blue) !important;
+  }
+</style>
+<!-- /ORBIX_COMPLETE_DARK_MODE -->

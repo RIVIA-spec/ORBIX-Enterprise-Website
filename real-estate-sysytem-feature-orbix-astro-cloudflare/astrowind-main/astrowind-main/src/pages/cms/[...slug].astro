@@ -1,0 +1,26 @@
+---
+import type { GetStaticPaths } from 'astro';
+import CmsPage from '~/components/orbix/CmsPage.astro';
+import { getCmsPage, getPublishedPagePaths } from '~/lib/strapi/client';
+
+export const prerender = true;
+
+export const getStaticPaths = (async () => {
+  const paths = await getPublishedPagePaths(false);
+  return paths
+    .filter((pathname) => pathname !== '/')
+    .map((pathname) => ({
+      params: { slug: pathname.replace(/^\/+/, '') },
+      props: { pathname },
+    }));
+}) satisfies GetStaticPaths;
+
+const { pathname } = Astro.props as { pathname: string };
+const page = await getCmsPage(pathname, false);
+const previewPage = {
+  ...page,
+  seo: { ...(page.seo || {}), noIndex: true, canonicalPath: pathname },
+};
+---
+
+<CmsPage pathname={pathname} page={previewPage} fallbackAllowed={false} />

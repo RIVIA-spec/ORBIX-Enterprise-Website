@@ -1,0 +1,15 @@
+---
+import { getBrandSettings, mediaUrl } from '~/lib/strapi/client';
+import { normalizeBrandSettings } from '~/lib/strapi/brand';
+
+const brand = await getBrandSettings();
+const favicon = normalizeBrandSettings(brand, mediaUrl).assets.favicon;
+const localFavicon = '/orbix/Orbix logo-01.png';
+---
+
+<link rel="shortcut icon" href={localFavicon} />
+<link rel="icon" href={localFavicon} />
+<link rel="apple-touch-icon" sizes="180x180" href={localFavicon} />
+{favicon && <link rel="shortcut icon" href={favicon} />}
+{favicon && <link rel="icon" href={favicon} />}
+{favicon && <link rel="apple-touch-icon" sizes="180x180" href={favicon} />}

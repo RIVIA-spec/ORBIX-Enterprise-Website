@@ -1,0 +1,1101 @@
+rules_version = '2';
+
+service cloud.firestore {
+match /databases/{database}/documents {
+
+// =========================================================
+// Helpers
+// =========================================================
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function userExists() {
+  return isSignedIn()
+    && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+}
+
+function getUserData() {
+  return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+}
+
+function hasRole(role) {
+  return userExists() && getUserData().role == role;
+}
+
+function isAppOwner() {
+  return hasRole('owner');
+}
+
+function isAdmin() {
+  return hasRole('admin');
+}
+
+function isSuperAdmin() {
+  return userExists()
+    && (
+      getUserData().platformRole == 'superadmin' ||
+      getUserData().role == 'superadmin'
+    );
+}
+
+function isStaff() {
+  return isAppOwner() || isAdmin() || isSuperAdmin();
+}
+
+function isTrustedBackend() {
+  return isSignedIn()
+    && (
+      request.auth.token.platformRole == 'superadmin' ||
+      request.auth.token.platformRole == 'admin' ||
+      request.auth.token.role == 'superadmin' ||
+      request.auth.token.role == 'admin'
+    );
+}
+
+function organizationMemberId(organizationId, userId) {
+  return organizationId + '_' + userId;
+}
+
+function isActiveOrganizationMember(organizationId) {
+  return isSignedIn()
+    && exists(/databases/$(database)/documents/organization_members/$(organizationMemberId(organizationId, request.auth.uid)))
+    && get(/databases/$(database)/documents/organization_members/$(organizationMemberId(organizationId, request.auth.uid))).data.status == 'active';
+}
+
+function organizationRole(organizationId) {
+  return get(/databases/$(database)/documents/organization_members/$(organizationMemberId(organizationId, request.auth.uid))).data.role;
+}
+
+function canManageOrganization(organizationId) {
+  return isStaff()
+    || (
+      isActiveOrganizationMember(organizationId)
+      && organizationRole(organizationId) in ['owner', 'manager']
+    );
+}
+
+function canManageOrganizationRole(organizationId, targetRole) {
+  return isStaff()
+    || (
+      isActiveOrganizationMember(organizationId)
+      && organizationRole(organizationId) == 'owner'
+      && targetRole != 'owner'
+    )
+    || (
+      isActiveOrganizationMember(organizationId)
+      && organizationRole(organizationId) == 'manager'
+      && !(targetRole in ['owner', 'manager'])
+    );
+}
+
+function organizationKeys() {
+  return [
+    'name',
+    'slug',
+    'type',
+    'status',
+    'logoUrl',
+    'ownerUserId',
+    'subscriptionPlan',
+    'createdAt',
+    'updatedAt'
+  ];
+}
+
+function organizationMemberKeys() {
+  return [
+    'organizationId',
+    'userId',
+    'role',
+    'status',
+    'branchIds',
+    'createdAt',
+    'updatedAt'
+  ];
+}
+
+function branchKeys() {
+  return [
+    'organizationId',
+    'name',
+    'city',
+    'address',
+    'phone',
+    'managerUserId',
+    'status',
+    'createdAt',
+    'updatedAt'
+  ];
+}
+
+function isValidOrganizationData() {
+  return request.resource.data.keys().hasOnly(organizationKeys())
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.name.size() <= 160
+    && request.resource.data.slug is string
+    && request.resource.data.slug.size() > 0
+    && request.resource.data.slug.size() <= 120
+    && request.resource.data.type in ['real_estate_agency', 'hotel', 'restaurant']
+    && request.resource.data.status in ['pending_approval', 'active', 'suspended', 'rejected', 'archived']
+    && request.resource.data.ownerUserId is string
+    && request.resource.data.ownerUserId.size() > 0
+    && request.resource.data.createdAt is timestamp
+    && request.resource.data.updatedAt is timestamp;
+}
+
+function isValidOrganizationMemberData() {
+  return request.resource.data.keys().hasOnly(organizationMemberKeys())
+    && request.resource.data.organizationId is string
+    && request.resource.data.organizationId.size() > 0
+    && request.resource.data.userId is string
+    && request.resource.data.userId.size() > 0
+    && request.resource.data.role in ['owner', 'manager', 'agent', 'marketing', 'photographer', 'accountant']
+    && request.resource.data.status in ['invited', 'active', 'disabled', 'removed']
+    && request.resource.data.createdAt is timestamp
+    && request.resource.data.updatedAt is timestamp
+    && (
+      !('branchIds' in request.resource.data)
+      || request.resource.data.branchIds is list
+    );
+}
+
+function isValidBranchData() {
+  return request.resource.data.keys().hasOnly(branchKeys())
+    && request.resource.data.organizationId is string
+    && request.resource.data.organizationId.size() > 0
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.name.size() <= 160
+    && request.resource.data.status in ['active', 'disabled', 'archived']
+    && request.resource.data.createdAt is timestamp
+    && request.resource.data.updatedAt is timestamp;
+}
+
+function isCookieSettingsAdmin() {
+  return isAdmin() || isAppOwner();
+}
+
+function cookieSettingsKeys() {
+  return [
+    'enabled',
+    'version',
+    'policyLastUpdated',
+    'titleAr',
+    'descriptionAr',
+    'acceptAllLabelAr',
+    'rejectOptionalLabelAr',
+    'policyLinkLabelAr',
+    'essentialEnabled',
+    'analyticsEnabled',
+    'marketingEnabled',
+    'analyticsProviderName',
+    'marketingProviderName',
+    'bannerPosition',
+    'requireRenewedConsent',
+    'updatedAt',
+    'updatedBy'
+  ];
+}
+
+function validCookieConsentBase() {
+  return request.resource.data.keys().hasOnly(cookieSettingsKeys())
+    && request.resource.data.keys().hasAll(cookieSettingsKeys())
+    && request.resource.data.enabled is bool
+    && request.resource.data.version is int
+    && request.resource.data.version >= 1
+    && request.resource.data.policyLastUpdated is string
+    && request.resource.data.policyLastUpdated.size() > 0
+    && request.resource.data.policyLastUpdated.size() <= 40
+    && request.resource.data.titleAr is string
+    && request.resource.data.titleAr.size() > 0
+    && request.resource.data.titleAr.size() <= 120
+    && request.resource.data.descriptionAr is string
+    && request.resource.data.descriptionAr.size() > 0
+    && request.resource.data.descriptionAr.size() <= 1500
+    && request.resource.data.acceptAllLabelAr is string
+    && request.resource.data.acceptAllLabelAr.size() > 0
+    && request.resource.data.acceptAllLabelAr.size() <= 80
+    && request.resource.data.rejectOptionalLabelAr is string
+    && request.resource.data.rejectOptionalLabelAr.size() > 0
+    && request.resource.data.rejectOptionalLabelAr.size() <= 80
+    && request.resource.data.policyLinkLabelAr is string
+    && request.resource.data.policyLinkLabelAr.size() > 0
+    && request.resource.data.policyLinkLabelAr.size() <= 80
+    && request.resource.data.essentialEnabled == true
+    && request.resource.data.analyticsEnabled == false
+    && request.resource.data.marketingEnabled == false
+    && request.resource.data.analyticsProviderName is string
+    && request.resource.data.analyticsProviderName.size() <= 120
+    && request.resource.data.marketingProviderName is string
+    && request.resource.data.marketingProviderName.size() <= 120
+    && request.resource.data.bannerPosition in ['bottom-right', 'bottom-center']
+    && request.resource.data.requireRenewedConsent is bool
+    && request.resource.data.updatedBy is string
+    && request.resource.data.updatedBy == request.auth.uid
+    && request.resource.data.updatedAt is timestamp
+    && request.resource.data.updatedAt == request.time;
+}
+
+function validCookieConsentCreate() {
+  return validCookieConsentBase()
+    && request.resource.data.version == 1;
+}
+
+function validCookieConsentUpdate() {
+  return validCookieConsentBase()
+    && request.resource.data.version >= resource.data.version
+    && request.resource.data.version <= resource.data.version + 1;
+}
+
+function protectedUserFields() {
+  return [
+    'role',
+    'platformRole',
+    'userRole',
+    'user_role',
+    'accountType',
+    'uid',
+    'isAdmin',
+    'isOwner',
+    'isAppOwner',
+    'isStaff',
+    'staff',
+    'isActive',
+    'isVerified',
+    'verified',
+    'verificationStatus',
+    'permissions',
+    'organizationId',
+    'activeOrganizationId',
+    'admin',
+    'owner',
+    'deactivation_reason'
+  ];
+}
+
+function protectedPropertyFields() {
+  return [
+    'status',
+    'approved',
+    'approvalStatus',
+    'isApproved',
+    'isVisible',
+    'isHidden',
+    'isFeatured',
+    'isDistinct',
+    'promoted',
+    'rejected',
+    'rejectionReason',
+    'moderationStatus',
+    'adminNote',
+    'ownerId',
+    'ownerUserId',
+    'userId',
+    'createdBy',
+    'postedBy',
+    'ownerUid',
+    'created_by'
+  ];
+}
+
+function propertyRequestModerationFields() {
+  return [
+    'status',
+    'approved',
+    'approvalStatus',
+    'isApproved',
+    'isVisible',
+    'isHidden',
+    'isFeatured',
+    'isDistinct',
+    'promoted',
+    'rejected',
+    'rejectionReason',
+    'moderationStatus',
+    'adminNote'
+  ];
+}
+
+function isSafeUserCreate(userId) {
+  return isSignedIn()
+    && request.auth.uid == userId
+
+    // role must be absent or normal user only
+    && (
+      !('role' in request.resource.data)
+      || request.resource.data.role == 'user'
+    )
+    && !request.resource.data.keys().hasAny([
+      'platformRole',
+      'userRole',
+      'user_role',
+      'accountType',
+      'organizationId',
+      'activeOrganizationId'
+    ])
+
+    // admin/owner/staff flags must not be true
+    && (
+      !('isAdmin' in request.resource.data)
+      || request.resource.data.isAdmin == false
+    )
+    && (
+      !('isOwner' in request.resource.data)
+      || request.resource.data.isOwner == false
+    )
+    && (
+      !('isAppOwner' in request.resource.data)
+      || request.resource.data.isAppOwner == false
+    )
+    && (
+      !('isStaff' in request.resource.data)
+      || request.resource.data.isStaff == false
+    )
+    && (
+      !('staff' in request.resource.data)
+      || request.resource.data.staff == false
+    )
+    && (
+      !('admin' in request.resource.data)
+      || request.resource.data.admin == false
+    )
+    && (
+      !('owner' in request.resource.data)
+      || request.resource.data.owner == false
+    )
+
+    // verification fields must not be granted by the user
+    && (
+      !('isVerified' in request.resource.data)
+      || request.resource.data.isVerified == false
+    )
+    && (
+      !('verified' in request.resource.data)
+      || request.resource.data.verified == false
+    )
+    && (
+      !('verificationStatus' in request.resource.data)
+      || request.resource.data.verificationStatus in ['none', 'unverified', 'pending', 'rejected']
+    )
+
+    // permissions map is protected
+    && !request.resource.data.keys().hasAny(['permissions']);
+}
+
+function isSelfSafeUserUpdate(userId) {
+  return isSignedIn()
+    && request.auth.uid == userId
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      'username',
+      'displayName',
+      'phone',
+      'phoneNumber',
+      'email',
+      'fullName',
+      'name',
+      'contact_number',
+      'photoURL',
+      'updatedAt',
+      'updated_at'
+    ])
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedUserFields())
+    && (
+      (
+        !('uid' in resource.data) &&
+        !('uid' in request.resource.data)
+      ) ||
+      request.resource.data.uid == resource.data.uid
+    );
+}
+
+function isOwnerRoleChange() {
+  return request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'platformRole'])
+    && (
+      resource.data.role == 'owner'
+      || request.resource.data.role == 'owner'
+      || resource.data.role == 'superadmin'
+      || request.resource.data.role == 'superadmin'
+      || resource.data.platformRole == 'owner'
+      || request.resource.data.platformRole == 'owner'
+      || resource.data.platformRole == 'superadmin'
+      || request.resource.data.platformRole == 'superadmin'
+    );
+}
+
+function isVerifiedUser() {
+  return userExists() && getUserData().isVerified == true;
+}
+
+function isUserVerified(userId) {
+  return exists(/databases/$(database)/documents/users/$(userId))
+    && get(/databases/$(database)/documents/users/$(userId)).data.isVerified == true;
+}
+
+function isResourceOwner() {
+  return isSignedIn() && request.auth.uid == resource.data.ownerId;
+}
+
+function isSafeOwnerPropertyUpdate() {
+  return isResourceOwner()
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedPropertyFields());
+}
+
+function isDealParty() {
+  return isSignedIn()
+    && (
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+}
+
+function isContractParty() {
+  return isSignedIn()
+    && (
+      (
+        'partyUserIds' in resource.data &&
+        request.auth.uid in resource.data.partyUserIds
+      ) ||
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+}
+
+function isTransactionParty() {
+  return isSignedIn()
+    && (
+      (
+        'partyUserIds' in resource.data &&
+        request.auth.uid in resource.data.partyUserIds
+      ) ||
+      request.auth.uid == resource.data.parties.partyAUid ||
+      request.auth.uid == resource.data.parties.partyBUid
+    );
+}
+
+function canManageDeals() {
+  return isAdmin() || isSuperAdmin() || isTrustedBackend();
+}
+
+function sensitiveDealFields() {
+  return [
+    'status',
+    'paymentStatus',
+    'payment_status',
+    'contractStatus',
+    'contract_status',
+    'contractId',
+    'contract_id',
+    'approvedBy',
+    'completedAt',
+    'paidAt',
+    'totalAmount',
+    'total_amount',
+    'propertyId',
+    'property_id',
+    'ownerUserId',
+    'customerUserId',
+    'organizationId'
+  ];
+}
+
+function safeDealCreateFields() {
+  return [
+    'dealId',
+    'propertyId',
+    'property_id',
+    'propertyTitle',
+    'property_title',
+    'propertyReference',
+    'property_reference',
+    'propertyTypeRaw',
+    'ownerUserId',
+    'customerUserId',
+    'customerName',
+    'customer_name',
+    'customerPhone',
+    'customer_phone',
+    'customerEmail',
+    'customer_email',
+    'preferredContactMethod',
+    'preferred_contact_method',
+    'dealType',
+    'listingType',
+    'purchaseIntent',
+    'purchase_intent',
+    'note',
+    'customerNote',
+    'customer_note',
+    'proposedPrice',
+    'proposed_price',
+    'totalAmount',
+    'total_amount',
+    'commissionType',
+    'commissionRate',
+    'commissionAmount',
+    'commissionTypeTitle',
+    'contractStatus',
+    'paymentStatus',
+    'status',
+    'createdAt',
+    'created_at',
+    'updatedAt'
+  ];
+}
+
+function hasOnlySafeDealCreateDefaults() {
+  return request.resource.data.keys().hasOnly(safeDealCreateFields())
+    && request.resource.data.customerUserId == request.auth.uid
+    && (
+      !('status' in request.resource.data) ||
+      request.resource.data.status == 'pending'
+    )
+    && (
+      !('paymentStatus' in request.resource.data) ||
+      request.resource.data.paymentStatus in ['unpaid', 'pending']
+    )
+    && (
+      !('contractStatus' in request.resource.data) ||
+      request.resource.data.contractStatus in ['not_created', 'pending']
+    )
+    && !request.resource.data.keys().hasAny([
+      'contractId',
+      'approvedBy',
+      'completedAt',
+      'paidAt'
+    ]);
+}
+
+function isSafeDealCustomerCreate() {
+  return isSignedIn()
+    && request.resource.data.customerUserId == request.auth.uid
+    && isVerifiedUser()
+    && hasOnlySafeDealCreateDefaults();
+}
+
+function safeDealPartyUpdateFields() {
+  return [
+    'customerName',
+    'customer_name',
+    'customerPhone',
+    'customer_phone',
+    'customerEmail',
+    'customer_email',
+    'preferredContactMethod',
+    'preferred_contact_method',
+    'purchaseIntent',
+    'purchase_intent',
+      'note',
+      'customerNote',
+      'customer_note',
+      'updatedAt'
+    ];
+}
+
+function isSafeDealPartyUpdate() {
+  return isDealParty()
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(safeDealPartyUpdateFields())
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(sensitiveDealFields());
+}
+
+function isPropertyRequestOwnerCreate() {
+  return isSignedIn()
+    && (
+      request.resource.data.ownerId == request.auth.uid ||
+      request.resource.data.ownerUserId == request.auth.uid ||
+      request.resource.data.userId == request.auth.uid ||
+      request.resource.data.createdBy == request.auth.uid ||
+      request.resource.data.postedBy == request.auth.uid ||
+      request.resource.data.ownerUid == request.auth.uid ||
+      request.resource.data.created_by == request.auth.uid
+    );
+}
+
+function isPropertyRequestResourceOwner() {
+  return isSignedIn()
+    && (
+      request.auth.uid == resource.data.ownerId ||
+      request.auth.uid == resource.data.ownerUserId ||
+      request.auth.uid == resource.data.userId ||
+      request.auth.uid == resource.data.createdBy ||
+      request.auth.uid == resource.data.postedBy ||
+      request.auth.uid == resource.data.ownerUid ||
+      request.auth.uid == resource.data.created_by
+    );
+}
+
+function isPropertyRequestOwnerSafeUpdate() {
+  return isPropertyRequestResourceOwner()
+    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(propertyRequestModerationFields());
+}
+
+// =========================================================
+// users
+// =========================================================
+match /users/{userId} {
+  allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+
+  allow create: if isSafeUserCreate(userId) || isSuperAdmin() || isTrustedBackend();
+
+  allow update: if isSelfSafeUserUpdate(userId)
+    || isSuperAdmin()
+    || (
+      isTrustedBackend()
+      && !isOwnerRoleChange()
+      && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'permissions',
+        'isAdmin',
+        'isOwner',
+        'isAppOwner',
+        'isStaff',
+        'admin',
+        'owner'
+      ])
+    );
+
+  allow delete: if isSuperAdmin() || isTrustedBackend();
+}
+
+// =========================================================
+// organizations
+// =========================================================
+match /organizations/{organizationId} {
+  allow create: if isSignedIn()
+    && isValidOrganizationData()
+    && request.resource.data.ownerUserId == request.auth.uid
+    && request.resource.data.status == 'pending_approval';
+
+  allow read: if isStaff() || isActiveOrganizationMember(organizationId);
+
+  allow update: if isValidOrganizationData()
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      'name',
+      'slug',
+      'status',
+      'logoUrl',
+      'subscriptionPlan',
+      'updatedAt'
+    ])
+    && (
+      isStaff()
+      || (
+        canManageOrganization(organizationId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'subscriptionPlan'])
+      )
+    );
+
+  allow delete: if false;
+}
+
+// =========================================================
+// organization_members
+// Deterministic document id: {organizationId}_{userId}
+// =========================================================
+match /organization_members/{membershipId} {
+  allow create: if isSignedIn()
+    && isValidOrganizationMemberData()
+    && (
+      isStaff()
+      || (
+        membershipId == organizationMemberId(request.resource.data.organizationId, request.resource.data.userId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.role == 'owner'
+        && request.resource.data.status == 'active'
+        && exists(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId))
+        && get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.ownerUserId == request.auth.uid
+      )
+      || (
+        membershipId == organizationMemberId(request.resource.data.organizationId, request.resource.data.userId)
+        && canManageOrganizationRole(request.resource.data.organizationId, request.resource.data.role)
+      )
+    );
+
+  allow read: if isStaff()
+    || (
+      isSignedIn()
+      && resource.data.userId == request.auth.uid
+    )
+    || isActiveOrganizationMember(resource.data.organizationId);
+
+  allow update: if isValidOrganizationMemberData()
+    && request.resource.data.organizationId == resource.data.organizationId
+    && request.resource.data.userId == resource.data.userId
+    && (
+      isStaff()
+      || (
+        request.auth.uid != resource.data.userId
+        && canManageOrganizationRole(resource.data.organizationId, request.resource.data.role)
+      )
+    );
+
+  allow delete: if false;
+}
+
+// =========================================================
+// branches
+// =========================================================
+match /branches/{branchId} {
+  allow create: if isValidBranchData()
+    && canManageOrganization(request.resource.data.organizationId);
+
+  allow read: if isStaff() || isActiveOrganizationMember(resource.data.organizationId);
+
+  allow update: if isValidBranchData()
+    && request.resource.data.organizationId == resource.data.organizationId
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      'name',
+      'city',
+      'address',
+      'phone',
+      'managerUserId',
+      'status',
+      'updatedAt'
+    ])
+    && canManageOrganization(resource.data.organizationId);
+
+  allow delete: if false;
+}
+
+// =========================================================
+// notifications
+// =========================================================
+match /users/{userId}/notifications/{notifId} {
+  allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+
+  allow update: if isSignedIn()
+    && request.auth.uid == userId
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+    && request.resource.data.read == true
+    && resource.data.read == false;
+
+  allow create, delete: if isStaff();
+}
+
+// =========================================================
+// favorites
+// =========================================================
+match /users/{userId}/favorites/{propertyId} {
+  allow read, write: if isSignedIn() && request.auth.uid == userId;
+}
+
+// =========================================================
+// user_bookings
+// =========================================================
+match /users/{userId}/user_bookings/{bookingId} {
+  allow create: if isSignedIn() && request.auth.uid == userId;
+  allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+  allow update, delete: if isStaff();
+}
+
+// Collection group support for admin dashboard queries:
+// collectionGroup("user_bookings")
+match /{path=**}/user_bookings/{bookingId} {
+  allow read: if isStaff();
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// verifications
+// =========================================================
+match /verifications/{verifId} {
+  allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+  allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isStaff());
+  allow update: if isStaff();
+  allow delete: if isSignedIn()
+    && request.auth.uid == resource.data.userId
+    && resource.data.status == 'rejected';
+}
+
+// =========================================================
+// features
+// =========================================================
+match /features/global {
+  allow read: if true;
+  allow write: if isStaff();
+}
+
+// =========================================================
+// property_category
+// =========================================================
+match /property_category/{id} {
+  allow read: if true;
+  allow write: if isStaff();
+}
+
+// =========================================================
+// properties
+// =========================================================
+match /properties/{propId} {
+  allow read: if true;
+  allow create: if isStaff();
+  allow update: if isStaff() || isSafeOwnerPropertyUpdate();
+  allow delete: if isStaff() || isResourceOwner();
+
+  match /panorama_tour/{docId} {
+    allow read: if true;
+    allow write: if isStaff();
+  }
+
+  match /comments/{commentId} {
+    allow read: if true;
+    allow create: if isSignedIn();
+    allow update, delete: if isStaff() || (isSignedIn() && request.auth.uid == resource.data.userId);
+  }
+
+  match /ratings/{userId} {
+    allow read: if true;
+    allow create, update: if isSignedIn() && request.auth.uid == userId;
+  }
+
+  // ØªÙˆØ§ÙÙ‚ Ù…Ø¹ Ø§Ù„Ù…Ø´Ø±ÙˆØ¹ Ø§Ù„Ø­Ø§Ù„ÙŠ
+  match /bookings/{bookingId} {
+    allow create: if isSignedIn()
+      && (
+        isStaff() ||
+        request.resource.data.customerUserId == request.auth.uid
+      );
+
+    allow read: if isSignedIn()
+      && (
+        isStaff() ||
+        request.auth.uid == resource.data.customerUserId ||
+        request.auth.uid == resource.data.ownerUserId
+      );
+
+    allow update, delete: if isStaff();
+  }
+
+  match /{anyPath=**} {
+    allow read: if true;
+    allow write: if isStaff();
+  }
+}
+
+// =========================================================
+// property_requests
+// =========================================================
+match /property_requests/{requestId} {
+  allow create: if isStaff()
+    || (
+      isVerifiedUser()
+      && isPropertyRequestOwnerCreate()
+    );
+
+  allow read: if isSignedIn()
+    && (
+      isPropertyRequestResourceOwner()
+      || isStaff()
+    );
+
+  allow update: if isStaff() || isPropertyRequestOwnerSafeUpdate();
+
+  allow delete: if isStaff();
+
+  match /{anyPath=**} {
+    allow read, write: if isStaff()
+      || (
+        isSignedIn()
+        && request.auth.uid == get(/databases/$(database)/documents/property_requests/$(requestId)).data.ownerId
+      );
+  }
+}
+
+// =========================================================
+// requests
+// =========================================================
+match /requests/{reqId} {
+  allow create: if isSignedIn();
+  allow read: if isStaff()
+    || (isSignedIn()
+      && (
+        request.auth.uid == resource.data.renterId ||
+        request.auth.uid == resource.data.ownerId
+      ));
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// settings
+// =========================================================
+match /settings/{docId} {
+  allow read: if true;
+  allow write: if isAppOwner();
+}
+
+// =========================================================
+// app_settings / cookie_consent
+// =========================================================
+match /app_settings/cookie_consent {
+  allow read: if true;
+  allow create: if isCookieSettingsAdmin() && validCookieConsentCreate();
+  allow update: if isCookieSettingsAdmin() && validCookieConsentUpdate();
+  allow delete: if false;
+}
+
+// =========================================================
+// report_reasons
+// =========================================================
+match /report_reasons/{reasonId} {
+  allow read: if true;
+  allow write: if isStaff();
+}
+
+// =========================================================
+// reports
+// =========================================================
+match /property_reports/{reportId} {
+  allow create: if isSignedIn();
+  allow read, update, delete: if isStaff();
+}
+
+match /hotel_reports/{reportId} {
+  allow create: if isSignedIn();
+  allow read, update, delete: if isStaff();
+}
+
+// =========================================================
+// deals
+// =========================================================
+match /deals/{dealId} {
+  allow create: if isSignedIn()
+    && (
+      canManageDeals() ||
+      isSafeDealCustomerCreate()
+    );
+
+  allow read: if isSignedIn() && (isStaff() || isDealParty());
+  allow update: if isSignedIn()
+    && (
+      canManageDeals() ||
+      isSafeDealPartyUpdate()
+    );
+  allow delete: if false;
+}
+
+// =========================================================
+// transactions
+// =========================================================
+match /transactions/{transactionId} {
+  allow read: if isSignedIn() && (isStaff() || isTransactionParty());
+  allow create, update, delete: if false;
+
+  match /auditEvents/{eventId} {
+    allow read: if isSignedIn()
+      && (
+        isStaff() ||
+        request.auth.uid in get(/databases/$(database)/documents/transactions/$(transactionId)).data.partyUserIds
+      );
+    allow create, update, delete: if false;
+  }
+}
+
+// =========================================================
+// contracts
+// =========================================================
+match /contracts/{contractId} {
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      isContractParty()
+    );
+
+  // Ù…Ù† Cloud Functions ÙÙ‚Ø·
+  allow create, update, delete: if false;
+
+  match /auditEvents/{eventId} {
+    allow read: if isSignedIn()
+      && (
+        isStaff() ||
+        request.auth.uid in get(/databases/$(database)/documents/contracts/$(contractId)).data.partyUserIds
+      );
+    allow create, update, delete: if false;
+  }
+}
+
+match /commission_invoices/{invoiceId} {
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      request.auth.uid == resource.data.payerUid
+    );
+  allow create, update, delete: if false;
+}
+
+// =========================================================
+// invoices
+// =========================================================
+match /invoices/{invoiceId} {
+  allow create: if isStaff();
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// manual_payments
+// =========================================================
+match /manual_payments/{paymentId} {
+  allow create: if isSignedIn()
+    && request.resource.data.customerUserId == request.auth.uid;
+
+  allow read: if isSignedIn()
+    && (
+      isStaff() ||
+      request.auth.uid == resource.data.customerUserId ||
+      request.auth.uid == resource.data.ownerUserId
+    );
+
+  allow update, delete: if isStaff();
+}
+
+// =========================================================
+// mail
+// =========================================================
+match /mail/{mailId} {
+  allow read, write: if isStaff();
+}
+
+// =========================================================
+// ads
+// =========================================================
+match /ads/{adId} {
+  allow read: if true;
+  allow create, update, delete: if isStaff();
+}
+
+// =========================================================
+// hotels
+// =========================================================
+match /hotels/{hotelId} {
+  allow read: if true;
+  allow create, update, delete: if isStaff();
+
+  match /room_types/{roomTypeId} {
+    allow read: if true;
+    allow create, update, delete: if isAdmin() || isAppOwner();
+
+    match /panorama_tour/{docId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    match /bookings/{bookingId} {
+      allow read, create, update, delete: if isStaff();
+    }
+  }
+}
+
+// =========================================================
+// fcm_notification_requests
+// =========================================================
+match /fcm_notification_requests/{requestId} {
+  allow create, read, update, delete: if isStaff();
+}
+
+}
+}

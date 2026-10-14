@@ -1,0 +1,16 @@
+﻿{
+  "collectionName": "components_brand_typographies",
+  "info": { "displayName": "Brand Typography" },
+  "options": {},
+  "attributes": {
+    "englishFont": { "type": "string", "default": "IBM Plex Sans", "required": true },
+    "arabicFont": { "type": "string", "default": "IBM Plex Sans Arabic", "required": true },
+    "codeFont": { "type": "string", "default": "IBM Plex Mono", "required": true },
+    "headingWeights": { "type": "json" },
+    "bodyWeights": { "type": "json" },
+    "baseTextSize": { "type": "string", "default": "16px" },
+    "headingScale": { "type": "json" },
+    "lineHeight": { "type": "string", "default": "1.6" },
+    "letterSpacing": { "type": "string", "default": "0" }
+  }
+}

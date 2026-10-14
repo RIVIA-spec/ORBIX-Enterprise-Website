@@ -1,0 +1,32 @@
+﻿**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/.cache/
+**/coverage/
+
+.env
+.env.*
+!.env.example
+
+*.log
+*.tsbuildinfo
+*.bak-text
+.DS_Store
+Thumbs.db
+
+rivia-proptech-main/configstore/
+rivia-proptech-main/flutter_01.png
+# Generated build outputs
+**/.dart_tool/
+**/.gradle/
+**/.astro/
+# Local secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.p12
+**/*.pfx
+**/service-account*.json
+**/credentials*.json

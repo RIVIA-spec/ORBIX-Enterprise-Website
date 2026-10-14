@@ -1,0 +1,19 @@
+﻿{
+  "collectionName": "components_brand_colors",
+  "info": { "displayName": "Brand Colors", "description": "Controlled Orbix color tokens" },
+  "options": {},
+  "attributes": {
+    "primaryBlue": { "type": "string", "default": "#016AFA", "required": true },
+    "secondaryLightBlue": { "type": "string", "default": "#69A8FE", "required": true },
+    "white": { "type": "string", "default": "#FFFFFF", "required": true },
+    "navy": { "type": "string", "default": "#06142D" },
+    "mainDarkBackground": { "type": "string", "default": "#030816" },
+    "elevatedSurface": { "type": "string", "default": "#0B1733" },
+    "primaryText": { "type": "string", "default": "#0B1020" },
+    "mutedText": { "type": "string", "default": "#526078" },
+    "borderColor": { "type": "string", "default": "#D9E6FA" },
+    "accentColor": { "type": "string", "default": "#69A8FE" },
+    "interactionColor": { "type": "string", "default": "#0157D0" },
+    "sourceNotes": { "type": "text", "default": "Navy and dark colors use local documented fallbacks because the supplied archives did not expose a readable SVG/EPS source during this implementation pass." }
+  }
+}

@@ -1,0 +1,97 @@
+site:
+  name: Orbix
+
+  site: 'https://orbixcity.com'
+
+  base: '/'
+
+  trailingSlash: false
+
+  googleSiteVerificationId: orcPxI47GSa-cRvY11tUe6iGg2IO_RPvnA1q95iEM3M
+
+metadata:
+  title:
+    default: Orbix
+
+    template: '%s - Orbix'
+
+  description: 'أوربيكس من ريفيا: تقنيات عقارية غامرة، جولات افتراضية، أدلة مدن، وحلول رقمية للعقارات والضيافة.'
+
+  robots:
+    index: true
+
+    follow: true
+
+  openGraph:
+    site_name: Orbix
+
+    images:
+      - url: '/orbix/Orbix logo-04.png'
+
+        width: 1200
+
+        height: 628
+
+    type: website
+
+  twitter:
+    handle: '@orbixcity'
+
+    site: '@orbixcity'
+
+    cardType: summary_large_image
+
+i18n:
+  language: ar
+
+  textDirection: rtl
+
+apps:
+  blog:
+    isEnabled: false
+
+    postsPerPage: 6
+
+    post:
+      isEnabled: true
+
+      permalink: '/%slug%'
+
+      robots:
+        index: true
+
+    list:
+      isEnabled: true
+
+      pathname: 'blog'
+
+      robots:
+        index: true
+
+    category:
+      isEnabled: true
+
+      pathname: 'category'
+
+      robots:
+        index: true
+
+    tag:
+      isEnabled: true
+
+      pathname: 'tag'
+
+      robots:
+        index: false
+
+    isRelatedPostsEnabled: true
+
+    relatedPostsCount: 4
+
+analytics:
+  vendors:
+    googleAnalytics:
+      id: null
+
+ui:
+  theme: 'dark'

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1006818091081",
+    "project_id": "rivia-proptech-a0ff2",
+    "storage_bucket": "rivia-proptech-a0ff2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1006818091081:android:c9bf50a87605a2d51e9f98",
+        "android_client_info": {
+          "package_name": "com.example.real_estate_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB14nfLVTOmD_1x7vihCe3UYBkmKkKG1r4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,176 @@
+﻿---
+import type { BrandSettings } from '~/lib/strapi/types';
+import { fallbackBrand } from '~/lib/strapi/fallbacks';
+import { normalizeBrandSettings } from '~/lib/strapi/brand';
+import { mediaUrl } from '~/lib/strapi/client';
+
+export interface Props {
+  brand?: BrandSettings;
+  variant?: 'light' | 'dark' | 'mark' | 'auto';
+  class?: string;
+}
+
+const { brand = fallbackBrand, variant = 'auto', class: className = '' } = Astro.props;
+
+const brandName = brand?.brandName || 'Orbix';
+const tagline = brand?.tagline || 'Reality Reimagined';
+const markOnly = variant === 'mark';
+const resolvedBrand = normalizeBrandSettings(brand, mediaUrl);
+const cmsLogo =
+  variant === 'mark'
+    ? resolvedBrand.assets.logoMark
+    : variant === 'light'
+      ? resolvedBrand.assets.logoLight
+      : resolvedBrand.assets.logoDark;
+---
+
+<orbix-safe-logo
+  class:list={['orbix-logo', { 'orbix-logo--mark': markOnly }, className]}
+  aria-label={markOnly ? brandName : `${brandName} — ${tagline}`}
+>
+  {cmsLogo && <img class="orbix-logo__cms" src={cmsLogo} alt="" loading="eager" decoding="async" data-orbix-cms-logo />}
+
+  <span class="orbix-logo__fallback" aria-hidden="true">
+    <svg class="orbix-logo__symbol" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="8"></circle>
+      <circle cx="32" cy="32" r="12" fill="currentColor" opacity="0.28"></circle>
+    </svg>
+
+    {
+      !markOnly && (
+        <span class="orbix-logo__copy">
+          <strong class="orbix-logo__name">{brandName}</strong>
+          <small class="orbix-logo__tagline">{tagline}</small>
+        </span>
+      )
+    }
+  </span>
+</orbix-safe-logo>
+
+<style>
+  .orbix-logo {
+    position: relative;
+    display: inline-flex;
+    min-width: max-content;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--orbix-blue, #0874ff);
+    font-family: var(--font-ibm-plex-sans), 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  .orbix-logo__fallback {
+    display: inline-flex;
+    align-items: center;
+    gap: inherit;
+    min-width: max-content;
+    transition: opacity 120ms ease;
+  }
+
+  .orbix-logo__cms {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: left center;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .orbix-logo--cms-ready .orbix-logo__cms {
+    opacity: 1;
+  }
+
+  .orbix-logo--cms-ready .orbix-logo__fallback {
+    opacity: 0;
+  }
+
+  .orbix-logo__symbol {
+    display: block;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 2.75rem;
+  }
+
+  .orbix-logo__copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1;
+  }
+
+  .orbix-logo__name {
+    color: var(--orbix-logo-name, #0874ff);
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  .orbix-logo__tagline {
+    margin-top: 0.28rem;
+    color: var(--orbix-logo-tagline, #31557f);
+    font-size: 0.5rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .orbix-logo--mark {
+    gap: 0;
+  }
+
+  .orbix-logo--mark .orbix-logo__fallback {
+    gap: 0;
+  }
+
+  :global(html.dark) .orbix-logo {
+    --orbix-logo-name: #ffffff;
+    --orbix-logo-tagline: rgb(255 255 255 / 0.62);
+  }
+
+  @media (max-width: 420px) {
+    .orbix-logo__symbol {
+      width: 2.4rem;
+      height: 2.4rem;
+      flex-basis: 2.4rem;
+    }
+
+    .orbix-logo__name {
+      font-size: 1.15rem;
+    }
+
+    .orbix-logo__tagline {
+      font-size: 0.45rem;
+    }
+  }
+</style>
+
+<script>
+  class OrbixSafeLogo extends HTMLElement {
+    connectedCallback() {
+      const image = this.querySelector<HTMLImageElement>('[data-orbix-cms-logo]');
+      if (!image) return;
+
+      const showCmsLogo = () => {
+        if (image.naturalWidth > 0) this.classList.add('orbix-logo--cms-ready');
+      };
+      const hideCmsLogo = () => {
+        this.classList.remove('orbix-logo--cms-ready');
+        image.hidden = true;
+      };
+
+      image.addEventListener('load', showCmsLogo, { once: true });
+      image.addEventListener('error', hideCmsLogo, { once: true });
+
+      if (image.complete) {
+        if (image.naturalWidth > 0) showCmsLogo();
+        else hideCmsLogo();
+      }
+    }
+  }
+
+  if (!customElements.get('orbix-safe-logo')) {
+    customElements.define('orbix-safe-logo', OrbixSafeLogo);
+  }
+</script>

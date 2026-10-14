@@ -1,0 +1,57 @@
+﻿{
+  "collectionName": "components_brand_header_settings",
+  "info": {
+    "displayName": "Header Settings",
+    "description": "Controls the Orbix website header"
+  },
+  "options": {},
+  "attributes": {
+    "isVisible": {
+      "type": "boolean",
+      "default": true
+    },
+    "isSticky": {
+      "type": "boolean",
+      "default": true
+    },
+    "style": {
+      "type": "enumeration",
+      "enum": ["light", "dark"],
+      "default": "dark"
+    },
+    "menuPosition": {
+      "type": "enumeration",
+      "enum": ["left", "center", "right"],
+      "default": "center"
+    },
+    "logoVariant": {
+      "type": "enumeration",
+      "enum": ["full", "mark"],
+      "default": "full"
+    },
+    "isFullWidth": {
+      "type": "boolean",
+      "default": false
+    },
+    "showThemeToggle": {
+      "type": "boolean",
+      "default": true
+    },
+    "showRssFeed": {
+      "type": "boolean",
+      "default": true
+    },
+    "showContactButton": {
+      "type": "boolean",
+      "default": true
+    },
+    "contactButtonText": {
+      "type": "string",
+      "default": "Contact"
+    },
+    "contactButtonUrl": {
+      "type": "string",
+      "default": "/contact"
+    }
+  }
+}

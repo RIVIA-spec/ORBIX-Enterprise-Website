@@ -1,0 +1,26 @@
+﻿{
+  "kind": "collectionType",
+  "collectionName": "virtual_tours",
+  "info": { "singularName": "virtual-tour", "pluralName": "virtual-tours", "displayName": "Virtual Tour", "description": "Pannellum virtual tour content and SEO" },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": { "i18n": { "localized": true } },
+  "attributes": {
+    "title": { "type": "string", "required": true, "pluginOptions": { "i18n": { "localized": true } } },
+    "slug": { "type": "uid", "targetField": "title", "required": true, "pluginOptions": { "i18n": { "localized": true } } },
+    "summary": { "type": "text", "pluginOptions": { "i18n": { "localized": true } } },
+    "coverImage": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
+    "panoramaScenes": { "type": "component", "component": "tour.panorama-scene", "repeatable": true, "required": true },
+    "initialScene": { "type": "string" },
+    "pitch": { "type": "decimal" },
+    "yaw": { "type": "decimal" },
+    "hfov": { "type": "decimal" },
+    "autoRotate": { "type": "decimal" },
+    "propertyOrHotelName": { "type": "string" },
+    "associationType": { "type": "enumeration", "enum": ["property", "hotel", "demo", "other"], "default": "property" },
+    "bookingCta": { "type": "component", "component": "shared.link", "repeatable": false },
+    "contactCta": { "type": "component", "component": "shared.link", "repeatable": false },
+    "isPrivateDemo": { "type": "boolean", "default": false },
+    "noindex": { "type": "boolean", "default": false },
+    "seo": { "type": "component", "component": "shared.seo", "repeatable": false }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": {
+    "source": "functions"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "rivia-proptech-a0ff2",
+          "appId": "1:1006818091081:android:c9bf50a87605a2d51e9f98",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "rivia-proptech-a0ff2",
+          "configurations": {
+            "android": "1:1006818091081:android:c9bf50a87605a2d51e9f98",
+            "ios": "1:1006818091081:ios:3b43bcf3df126d591e9f98"
+          }
+        }
+      }
+    }
+  }
+}

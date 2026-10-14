@@ -1,0 +1,26 @@
+﻿{
+  "collectionName": "components_brand_footer_settings",
+  "info": {
+    "displayName": "Footer Settings",
+    "description": "Controls the Orbix website footer"
+  },
+  "options": {},
+  "attributes": {
+    "isVisible": {
+      "type": "boolean",
+      "default": true
+    },
+    "showTechnicalLinks": {
+      "type": "boolean",
+      "default": true
+    },
+    "showSocialLinks": {
+      "type": "boolean",
+      "default": true
+    },
+    "copyrightText": {
+      "type": "string",
+      "default": "Orbix by RIVIA. All rights reserved."
+    }
+  }
+}

@@ -1,0 +1,74 @@
+---
+import type { GetStaticPaths } from 'astro';
+
+import merge from 'lodash.merge';
+import type { ImageMetadata } from 'astro';
+import Layout from '~/layouts/PageLayout.astro';
+import SinglePost from '~/components/blog/SinglePost.astro';
+import ToBlogLink from '~/components/blog/ToBlogLink.astro';
+
+import { getCanonical, getPermalink } from '~/utils/permalinks';
+import { getStaticPathsBlogPost, blogPostRobots } from '~/utils/blog';
+import { findImage } from '~/utils/images';
+import type { MetaData, Post } from '~/types';
+import RelatedPosts from '~/components/blog/RelatedPosts.astro';
+import CmsPage from '~/components/orbix/CmsPage.astro';
+import { getCmsPage, getPublishedPagePaths } from '~/lib/strapi/client';
+
+export const prerender = true;
+
+export const getStaticPaths = (async () => {
+  const blogPaths = await getStaticPathsBlogPost();
+  const blogRoutes = new Set(blogPaths.map(({ params }) => String(params.blog || '').replace(/^\/+|\/+$/g, '')));
+  const cmsPaths = await getPublishedPagePaths(false);
+  return [
+    ...blogPaths,
+    ...cmsPaths
+      .filter((pathname) => pathname !== '/')
+      .filter((pathname) => !blogRoutes.has(pathname.replace(/^\/+|\/+$/g, '')))
+      .map((pathname) => ({ params: { blog: pathname.replace(/^\/+/, '') }, props: { cmsPath: pathname } })),
+  ];
+}) satisfies GetStaticPaths;
+
+const { post, cmsPath } = Astro.props as { post?: Post; cmsPath?: string };
+let cmsPage: Awaited<ReturnType<typeof getCmsPage>> | undefined;
+
+if (cmsPath) {
+  cmsPage = await getCmsPage(cmsPath, false);
+}
+
+const url = post ? getCanonical(getPermalink(post.permalink, 'post')) : '';
+const image = post ? ((await findImage(post.image)) as ImageMetadata | string | undefined) : undefined;
+
+const metadata = merge(
+  {
+    title: post?.title,
+    description: post?.excerpt,
+    robots: {
+      index: blogPostRobots?.index,
+      follow: blogPostRobots?.follow,
+    },
+    openGraph: {
+      type: 'article',
+      ...(image
+        ? { images: [{ url: image, width: (image as ImageMetadata)?.width, height: (image as ImageMetadata)?.height }] }
+        : {}),
+    },
+  },
+  { ...(post?.metadata ? { ...post.metadata, canonical: post.metadata?.canonical || url } : {}) }
+) as MetaData;
+---
+
+{
+  cmsPath && cmsPage ? (
+    <CmsPage pathname={cmsPath} page={cmsPage} fallbackAllowed={false} />
+  ) : post ? (
+    <Layout metadata={metadata}>
+      <SinglePost post={{ ...post, image: image }} url={url}>
+        {post.Content && <post.Content />}
+      </SinglePost>
+      <ToBlogLink />
+      <RelatedPosts post={post} />
+    </Layout>
+  ) : null
+}

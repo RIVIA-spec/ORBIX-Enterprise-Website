@@ -1,0 +1,151 @@
+---
+import Button from '~/components/ui/Button.astro';
+import { Icon } from 'astro-icon/components';
+import { escapeCmsText, safeCmsUrl } from '~/lib/content/sanitize';
+
+export interface Props {
+  eyebrow?: string;
+  title?: string;
+  summary?: string;
+  slides?: Array<Record<string, unknown>>;
+}
+
+const { eyebrow, title, summary, slides = [] } = Astro.props;
+const safeSlides = Array.isArray(slides) ? slides : [];
+const showControls = safeSlides.length > 1;
+---
+
+<orbix-carousel class="block">
+  <section class="relative overflow-hidden border-y border-white/10 bg-[var(--orbix-navy)] text-white">
+    <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 md:py-20">
+      {eyebrow && <p class="font-mono text-xs uppercase tracking-[0.18em] text-[var(--orbix-blue-light)]">{eyebrow}</p>}
+
+      {
+        title && (
+          <h2 class="mt-5 max-w-4xl text-3xl font-semibold leading-tight text-white sm:text-4xl md:text-6xl">
+            {title}
+          </h2>
+        )
+      }
+
+      {summary && <p class="mt-5 max-w-3xl text-base leading-8 text-white/72 md:text-lg">{summary}</p>}
+
+      {
+        safeSlides.length > 0 && (
+          <div class="relative mt-12">
+            {safeSlides.map((slide, index) => (
+              <article
+                class:list={['border-r-2 border-[var(--orbix-blue)] pr-6 md:pr-10', index === 0 ? 'block' : 'hidden']}
+                data-carousel-slide
+                aria-hidden={index !== 0}
+              >
+                <p class="font-mono text-xs text-[var(--orbix-blue-light)]">
+                  {String(slide.label || String(index + 1).padStart(2, '0'))}
+                </p>
+
+                <h3 class="mt-3 max-w-4xl text-3xl font-semibold leading-tight text-white md:text-5xl">
+                  {String(slide.title || '')}
+                </h3>
+
+                {slide.description && (
+                  <p class="mt-4 max-w-2xl text-base leading-7 text-white/72">{String(slide.description)}</p>
+                )}
+
+                {typeof slide.primaryCta === 'object' && slide.primaryCta && (
+                  <div class="mt-7">
+                    <Button
+                      variant="primary"
+                      text={escapeCmsText(String((slide.primaryCta as { label?: string }).label || 'اعرف المزيد'))}
+                      href={safeCmsUrl(String((slide.primaryCta as { url?: string }).url || '#'))}
+                    />
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )
+      }
+
+      {
+        showControls && (
+          <div class="mt-10 flex items-center gap-3">
+            <button
+              class="flex size-11 items-center justify-center rounded-full border border-white/20 text-lg text-white transition hover:border-[var(--orbix-blue)] hover:bg-[var(--orbix-blue)] focus:outline-none focus:ring-4 focus:ring-[var(--orbix-blue)]/30"
+              type="button"
+              data-carousel-prev
+              aria-label="الشريحة السابقة"
+            >
+              <Icon name="tabler:arrow-left" class="size-5 rtl:rotate-180" />
+            </button>
+
+            <button
+              class="flex size-11 items-center justify-center rounded-full border border-white/20 text-lg text-white transition hover:border-[var(--orbix-blue)] hover:bg-[var(--orbix-blue)] focus:outline-none focus:ring-4 focus:ring-[var(--orbix-blue)]/30"
+              type="button"
+              data-carousel-next
+              aria-label="الشريحة التالية"
+            >
+              <Icon name="tabler:arrow-right" class="size-5 rtl:rotate-180" />
+            </button>
+
+            <p class="mr-3 font-mono text-xs text-white/55" aria-live="polite">
+              <span data-carousel-current>01</span>
+              <span aria-hidden="true"> / </span>
+              <span>{String(safeSlides.length).padStart(2, '0')}</span>
+            </p>
+          </div>
+        )
+      }
+    </div>
+  </section>
+</orbix-carousel>
+
+<script>
+  class OrbixCarousel extends HTMLElement {
+    private index = 0;
+
+    connectedCallback() {
+      this.querySelector('[data-carousel-prev]')?.addEventListener('click', () => {
+        this.show(this.index - 1);
+      });
+
+      this.querySelector('[data-carousel-next]')?.addEventListener('click', () => {
+        this.show(this.index + 1);
+      });
+
+      this.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight') this.show(this.index - 1);
+        if (event.key === 'ArrowLeft') this.show(this.index + 1);
+      });
+    }
+
+    private slides() {
+      return Array.from(this.querySelectorAll<HTMLElement>('[data-carousel-slide]'));
+    }
+
+    private show(next: number) {
+      const slides = this.slides();
+
+      if (!slides.length) return;
+
+      this.index = (next + slides.length) % slides.length;
+
+      slides.forEach((slide, slideIndex) => {
+        const active = slideIndex === this.index;
+
+        slide.classList.toggle('block', active);
+        slide.classList.toggle('hidden', !active);
+        slide.setAttribute('aria-hidden', String(!active));
+      });
+
+      const counter = this.querySelector<HTMLElement>('[data-carousel-current]');
+
+      if (counter) {
+        counter.textContent = String(this.index + 1).padStart(2, '0');
+      }
+    }
+  }
+
+  if (!customElements.get('orbix-carousel')) {
+    customElements.define('orbix-carousel', OrbixCarousel);
+  }
+</script>

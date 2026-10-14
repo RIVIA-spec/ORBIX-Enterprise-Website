@@ -1,0 +1,153 @@
+---
+import { mediaUrl } from '~/lib/strapi/client';
+import type { StrapiMedia } from '~/lib/strapi/types';
+
+export interface Props {
+  title?: string;
+  summary?: string;
+  scenes?: Array<Record<string, unknown>>;
+}
+
+const { title = 'Virtual tour', summary = '', scenes = [] } = Astro.props;
+const normalizedScenes = scenes
+  .filter((scene) => scene && typeof scene === 'object')
+  .map((scene) => {
+    const panoramaValue = scene.panorama;
+    const previewValue = scene.poster || scene.preview || scene.coverImage;
+    return {
+      ...scene,
+      panorama: typeof panoramaValue === 'string' ? panoramaValue : mediaUrl(panoramaValue as StrapiMedia | undefined),
+      poster: typeof previewValue === 'string' ? previewValue : mediaUrl(previewValue as StrapiMedia | undefined),
+    };
+  })
+  .filter((scene) => Boolean(scene.panorama));
+const initial = normalizedScenes[0];
+---
+
+<section class="relative overflow-hidden bg-[var(--orbix-dark)] px-4 py-16 text-white sm:px-6">
+  <div class="mx-auto max-w-7xl">
+    <div class="mb-8 max-w-3xl">
+      <p class="font-mono text-xs uppercase tracking-[0.22em] text-[var(--orbix-blue-light)]">Pannellum viewer</p>
+      <h1 class="mt-4 text-4xl font-semibold md:text-6xl">{title}</h1>
+      {summary && <p class="mt-4 text-white/72">{summary}</p>}
+    </div>
+
+    <pannellum-viewer
+      class="block overflow-hidden rounded-lg border border-white/10 bg-[var(--orbix-surface)]"
+      data-scenes={JSON.stringify(normalizedScenes)}
+      tabindex="0"
+    >
+      <div
+        class="relative grid min-h-[28rem] place-items-center overflow-hidden p-6 text-center"
+        data-tour-status
+        aria-live="polite"
+      >
+        {
+          typeof initial?.panorama === 'string' ? (
+            <img
+              class="absolute inset-0 h-full w-full object-cover opacity-30"
+              src={String(initial.poster || initial.panorama)}
+              alt=""
+              loading="lazy"
+            />
+          ) : null
+        }
+        <div class="relative max-w-xl">
+          <p class="font-mono text-sm text-[var(--orbix-blue-light)]">Lazy loaded 360 experience</p>
+          <p class="mt-3 text-white/72">
+            Use the viewer controls after the Pannellum script loads. This fallback remains accessible if scripts fail.
+          </p>
+        </div>
+      </div>
+      <div class="hidden h-[70vh] min-h-[28rem]" data-tour-canvas></div>
+    </pannellum-viewer>
+  </div>
+</section>
+
+<script>
+  class PannellumViewer extends HTMLElement {
+    private loaded = false;
+
+    connectedCallback() {
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect();
+          void this.load();
+        }
+      });
+      observer.observe(this);
+    }
+
+    private async load() {
+      if (this.loaded) return;
+      this.loaded = true;
+      try {
+        await this.ensureAssets();
+        const scenes = JSON.parse(this.dataset.scenes || '[]');
+        const first = scenes[0];
+        const canvas = this.querySelector<HTMLElement>('[data-tour-canvas]');
+        const status = this.querySelector<HTMLElement>('[data-tour-status]');
+        if (!canvas || !first || !window.pannellum) return;
+        canvas.classList.remove('hidden');
+        status?.classList.add('hidden');
+        window.pannellum.viewer(canvas, {
+          default: {
+            firstScene: first.sceneId || 'scene-1',
+            sceneFadeDuration: 700,
+            autoLoad: true,
+            keyboardZoom: true,
+          },
+          scenes: Object.fromEntries(
+            scenes.map((scene: Record<string, unknown>, index: number) => [
+              String(scene.sceneId || `scene-${index + 1}`),
+              {
+                title: scene.label,
+                type: 'equirectangular',
+                panorama: scene.panorama,
+                pitch: Number(scene.pitch || 0),
+                yaw: Number(scene.yaw || 0),
+                hfov: Number(scene.hfov || 100),
+                autoRotate: Number(scene.autoRotate || 0),
+                hotSpots: Array.isArray(scene.hotspots)
+                  ? scene.hotspots.map((hotspot: Record<string, unknown>) => ({
+                      pitch: Number(hotspot.pitch || 0),
+                      yaw: Number(hotspot.yaw || 0),
+                      type: hotspot.hotspotType === 'scene' ? 'scene' : 'info',
+                      text: String(hotspot.text || hotspot.label || ''),
+                      sceneId: hotspot.targetSceneId,
+                    }))
+                  : [],
+              },
+            ])
+          ),
+        });
+      } catch {
+        this.querySelector('[data-tour-status]')?.classList.add('text-red-200');
+      }
+    }
+
+    private ensureAssets() {
+      return new Promise<void>((resolve, reject) => {
+        if (window.pannellum) return resolve();
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css';
+        document.head.append(css);
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js';
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Pannellum failed to load'));
+        document.head.append(script);
+      });
+    }
+  }
+
+  declare global {
+    interface Window {
+      pannellum?: { viewer: (element: Element, config: Record<string, unknown>) => unknown };
+    }
+  }
+
+  if (!customElements.get('pannellum-viewer')) customElements.define('pannellum-viewer', PannellumViewer);
+</script>

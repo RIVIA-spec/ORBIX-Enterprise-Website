@@ -1,0 +1,15 @@
+---
+import CmsPage from '~/components/orbix/CmsPage.astro';
+import { getCollection } from '~/lib/strapi/client';
+import type { CmsPage as CmsPageData } from '~/lib/strapi/types';
+
+export const getStaticPaths = async () => {
+  const items = await getCollection<CmsPageData>('guides');
+  return items.map((item) => ({ params: { slug: item.slug.split('/').pop() }, props: { page: item } }));
+};
+
+const { slug } = Astro.params;
+const { page } = Astro.props;
+---
+
+<CmsPage pathname={`/guides/${slug}`} page={page} fallbackAllowed={false} />

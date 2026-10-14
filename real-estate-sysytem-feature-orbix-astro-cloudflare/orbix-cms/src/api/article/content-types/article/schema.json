@@ -1,0 +1,274 @@
+{
+  "kind": "collectionType",
+  "collectionName": "articles",
+  "info": {
+    "singularName": "article",
+    "pluralName": "articles",
+    "displayName": "Article",
+    "description": "Orbix editorial, guides, news, and SEO content"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "articleType": {
+      "type": "enumeration",
+      "enum": [
+        "article",
+        "city-guide",
+        "partner-guide",
+        "photography-guide"
+      ],
+      "default": "article",
+      "required": true
+    },
+    "arabicSlug": {
+      "type": "string"
+    },
+    "preferredSlugLanguage": {
+      "type": "enumeration",
+      "enum": [
+        "en",
+        "ar"
+      ],
+      "default": "en"
+    },
+    "excerpt": {
+      "type": "text",
+      "required": true,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "coverImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "body": {
+      "type": "richtext",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      },
+      "required": true
+    },
+    "bodyMarkdown": {
+      "type": "richtext",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "category": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::category.category",
+      "inversedBy": "articles"
+    },
+    "tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "articles"
+    },
+    "author": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::author.author",
+      "inversedBy": "articles"
+    },
+    "readingTime": {
+      "type": "integer"
+    },
+    "featured": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": [
+        "draft",
+        "published",
+        "archived"
+      ],
+      "default": "draft"
+    },
+    "keyTakeaways": {
+      "type": "json"
+    },
+    "definitions": {
+      "type": "json"
+    },
+    "faq": {
+      "type": "json"
+    },
+    "entities": {
+      "type": "json"
+    },
+    "citations": {
+      "type": "json"
+    },
+    "relatedArticleSlugs": {
+      "type": "json"
+    },
+    "seoTitle": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "seoDescription": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "canonicalUrl": {
+      "type": "string"
+    },
+    "ogTitle": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "ogDescription": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "ogImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "twitterTitle": {
+      "type": "string",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "twitterDescription": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "robots": {
+      "type": "enumeration",
+      "enum": [
+        "index_follow",
+        "noindex_follow",
+        "index_nofollow",
+        "noindex_nofollow"
+      ]
+    },
+    "schemaType": {
+      "type": "enumeration",
+      "enum": [
+        "Article",
+        "BlogPosting",
+        "NewsArticle",
+        "CreativeWork",
+        "CollectionPage",
+        "ProfilePage",
+        "Report",
+        "DefinedTerm"
+      ]
+    },
+    "focusKeyword": {
+      "type": "string"
+    },
+    "secondaryKeywords": {
+      "type": "json"
+    },
+    "aiSummary": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "answerSnippet": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "llmSummary": {
+      "type": "text",
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
+    },
+    "entityMentions": {
+      "type": "json"
+    },
+    "geoTopics": {
+      "type": "json"
+    },
+    "geoQuestions": {
+      "type": "json"
+    },
+    "structuredDataOverride": {
+      "type": "json"
+    },
+    "seo": {
+      "type": "component",
+      "component": "shared.seo",
+      "repeatable": false,
+      "required": false
+    }
+  }
+}

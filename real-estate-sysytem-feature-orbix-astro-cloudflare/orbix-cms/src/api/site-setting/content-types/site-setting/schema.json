@@ -1,0 +1,178 @@
+{
+  "kind": "singleType",
+  "collectionName": "site_settings",
+  "info": {
+    "singularName": "site-setting",
+    "pluralName": "site-settings",
+    "displayName": "Site Settings"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "siteName": {
+      "type": "string"
+    },
+    "siteUrl": {
+      "type": "string"
+    },
+    "tagline": {
+      "type": "string"
+    },
+    "defaultSeoTitle": {
+      "type": "string"
+    },
+    "defaultSeoDescription": {
+      "type": "text"
+    },
+    "defaultOgImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "siteLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "darkLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "favicon": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "brandPrimaryColor": {
+      "type": "string"
+    },
+    "brandSecondaryColor": {
+      "type": "string"
+    },
+    "brandAccentColor": {
+      "type": "string"
+    },
+    "brandBackgroundColor": {
+      "type": "string"
+    },
+    "brandSurfaceColor": {
+      "type": "string"
+    },
+    "brandTextColor": {
+      "type": "string"
+    },
+    "brandMutedTextColor": {
+      "type": "string"
+    },
+    "brandCreamColor": {
+      "type": "string"
+    },
+    "brandColors": {
+      "type": "json"
+    },
+    "organizationName": {
+      "type": "string"
+    },
+    "contactEmail": {
+      "type": "email"
+    },
+    "topicStripLabel": {
+      "type": "string"
+    },
+    "headerNavItems": {
+      "type": "json"
+    },
+    "headerCtaText": {
+      "type": "string"
+    },
+    "headerCtaUrl": {
+      "type": "string"
+    },
+    "footerDescription": {
+      "type": "text"
+    },
+    "footerColumns": {
+      "type": "json"
+    },
+    "footerLegalLinks": {
+      "type": "json"
+    },
+    "footerReadingLabel": {
+      "type": "string"
+    },
+    "footerReadingLinks": {
+      "type": "json"
+    },
+    "footerTechnicalLabel": {
+      "type": "string"
+    },
+    "footerTechnicalLinks": {
+      "type": "json"
+    },
+    "newsletter": {
+      "type": "json"
+    },
+    "aboutPage": {
+      "type": "json"
+    },
+    "contributorsPage": {
+      "type": "json"
+    },
+    "submitPage": {
+      "type": "json"
+    },
+    "socialLinks": {
+      "type": "json"
+    },
+    "googlePlayUrl": {
+      "type": "string"
+    },
+    "appStoreUrl": {
+      "type": "string"
+    },
+    "appLinks": {
+      "type": "json"
+    },
+    "mediaKitUrl": {
+      "type": "string"
+    },
+    "siteKeywords": {
+      "type": "json"
+    },
+    "siteEntities": {
+      "type": "json"
+    },
+    "llmsDescription": {
+      "type": "text"
+    },
+    "aiCrawlerPolicy": {
+      "type": "text"
+    },
+    "editorialPolicy": {
+      "type": "text"
+    },
+    "citationPolicy": {
+      "type": "text"
+    },
+    "brandEntityDescription": {
+      "type": "text"
+    },
+    "organizationSchemaOverride": {
+      "type": "json"
+    },
+    "websiteSchemaOverride": {
+      "type": "json"
+    }
+  }
+}

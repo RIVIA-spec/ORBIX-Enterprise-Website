@@ -1,0 +1,355 @@
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const {defineSecret} = require('firebase-functions/params');
+
+admin.initializeApp();
+
+const cfWorkerSharedSecret = defineSecret('CF_WORKER_SHARED_SECRET');
+const ADMIN_EMAIL_WORKER_URL =
+   'https://orbixcity-admin-email-worker.purple-cell-72bb.workers.dev/send-admin-notification';
+
+function readAdminEmailField(data, ...keys) {
+  for (const key of keys) {
+    const directValue = data?.[key];
+    if (directValue !== undefined && directValue !== null && directValue !== '') {
+      return directValue;
+    }
+    const metadataValue = data?.metadata?.[key];
+    if (metadataValue !== undefined && metadataValue !== null && metadataValue !== '') {
+      return metadataValue;
+    }
+  }
+  return undefined;
+}
+
+function buildAdminDashboardLink(emailType) {
+  const baseUrl = String(process.env.APP_BASE_URL || '').trim().replace(/\/$/, '');
+  if (!baseUrl) return undefined;
+  return emailType === 'purchase' ? `${baseUrl}/admin/deals` : `${baseUrl}/admin/bookings`;
+}
+
+function buildAdminEmailContent(data) {
+  const emailType = readAdminEmailField(data, 'emailType') || 'general';
+
+  if (emailType === 'purchase') {
+    return {
+      subject: `طلب شراء عقار جديد: ${readAdminEmailField(data, 'propertyTitle', 'property_title') || readAdminEmailField(data, 'propertyId', 'property_id') || 'عقار'}`,
+    };
+  }
+
+  if (emailType === 'property_booking') {
+    return {
+      subject: `طلب حجز عقار جديد: ${readAdminEmailField(data, 'propertyTitle', 'property_title') || readAdminEmailField(data, 'propertyId', 'property_id') || 'عقار'}`,
+    };
+  }
+
+  return {
+    subject: 'Rivia admin notification',
+  };
+}
+
+function buildAdminWorkerPayload(data) {
+  const {subject} = buildAdminEmailContent(data || {});
+  const emailType = readAdminEmailField(data, 'emailType') || 'general';
+  const dashboardLink = readAdminEmailField(data, 'dashboardLink') || buildAdminDashboardLink(emailType);
+
+  return {
+    eventType: emailType,
+    summary: subject,
+    entityId:
+      readAdminEmailField(data, 'dealId') ||
+      readAdminEmailField(data, 'bookingId') ||
+      readAdminEmailField(data, 'propertyId', 'property_id') ||
+      readAdminEmailField(data, 'contractId') ||
+      undefined,
+    actorId: readAdminEmailField(data, 'customerUserId') || readAdminEmailField(data, 'ownerUserId') || undefined,
+    metadata: {
+      dealId: readAdminEmailField(data, 'dealId') || null,
+      bookingId: readAdminEmailField(data, 'bookingId') || null,
+      propertyId: readAdminEmailField(data, 'propertyId', 'property_id') || null,
+      propertyTitle: readAdminEmailField(data, 'propertyTitle', 'property_title') || null,
+      contractId: readAdminEmailField(data, 'contractId') || null,
+      customerUserId: readAdminEmailField(data, 'customerUserId') || null,
+      customerName: readAdminEmailField(data, 'customerName', 'customer_name') || null,
+      customerPhone: readAdminEmailField(data, 'customerPhone', 'customer_phone') || null,
+      customerEmail: readAdminEmailField(data, 'customerEmail', 'customer_email') || null,
+      customerNote: readAdminEmailField(data, 'customerNote', 'customer_note', 'note') || null,
+      ownerUserId: readAdminEmailField(data, 'ownerUserId') || null,
+      templateType: readAdminEmailField(data, 'templateType') || null,
+      checkIn: readAdminEmailField(data, 'checkIn', 'check_in') || null,
+      checkOut: readAdminEmailField(data, 'checkOut', 'check_out') || null,
+      guests: readAdminEmailField(data, 'guests') || null,
+      proposedPrice: readAdminEmailField(data, 'proposedPrice', 'proposed_price') || null,
+      preferredContactMethod: readAdminEmailField(data, 'preferredContactMethod', 'preferred_contact_method') || null,
+      listingType: readAdminEmailField(data, 'listingType', 'listing_type') || null,
+      requestType: readAdminEmailField(data, 'requestType', 'request_type') || null,
+      createdAt: readAdminEmailField(data, 'createdAt', 'created_at') || null,
+      dashboardLink: dashboardLink || null,
+      dashboardHint: dashboardLink ? null : emailType === 'purchase' ? 'افتح لوحة التحكم > الصفقات' : 'افتح لوحة التحكم > الحجوزات',
+    },
+  };
+}
+
+// Cloud Function لإرسال إشعارات FCM
+exports.sendFCMNotification = functions.firestore
+  .document('fcm_notification_requests/{requestId}')
+  .onCreate(async (snap, context) => {
+    const data = snap.data();
+    
+    console.log('FCM Notification Request received:', {
+      requestId: context.params.requestId,
+      status: data.status,
+      tokensCount: data.tokens ? data.tokens.length : 0,
+      title: data.title,
+      body: data.body
+    });
+    
+    // التحقق من أن الحالة pending
+    if (data.status !== 'pending') {
+      console.log('Request status is not pending, skipping...');
+      return null;
+    }
+
+    const { tokens, title, body, type } = data;
+    
+    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+      console.error('No tokens provided');
+      await snap.ref.update({ 
+        status: 'failed', 
+        error: 'No tokens provided',
+        failed_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return null;
+    }
+
+    try {
+      // إرسال إشعار FCM
+      const message = {
+        notification: {
+          title: title || 'إشعار جديد',
+          body: body || 'لديك إشعار جديد',
+        },
+        data: {
+          type: type || 'custom',
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'high_importance_channel',
+            sound: 'default',
+            priority: 'high',
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1,
+            },
+          },
+        },
+        tokens: tokens, // إرسال لعدة أجهزة
+      };
+
+      console.log(`Sending FCM notifications to ${tokens.length} devices...`);
+      const response = await admin.messaging().sendEachForMulticast(message);
+      
+      console.log(`Successfully sent ${response.successCount} messages`);
+      console.log(`Failed to send ${response.failureCount} messages`);
+      
+      // طباعة تفاصيل الأخطاء إن وجدت
+      if (response.failureCount > 0) {
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            console.error(`Failed to send to token ${idx}:`, resp.error);
+          }
+        });
+      }
+
+      // تحديث حالة الطلب
+      await snap.ref.update({
+        status: 'completed',
+        success_count: response.successCount,
+        failure_count: response.failureCount,
+        completed_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      console.log('FCM notification request completed successfully');
+
+      // حذف الطلب بعد 24 ساعة (اختياري)
+      setTimeout(async () => {
+        try {
+          await snap.ref.delete();
+          console.log('FCM notification request deleted after 24 hours');
+        } catch (e) {
+          console.error('Error deleting request:', e);
+        }
+      }, 24 * 60 * 60 * 1000); // 24 ساعة
+
+      return null;
+    } catch (error) {
+      console.error('Error sending FCM notification:', error);
+      console.error('Error stack:', error.stack);
+      await snap.ref.update({
+        status: 'failed',
+        error: error.message || 'Unknown error',
+        error_stack: error.stack,
+        failed_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return null;
+    }
+  });
+
+exports.createContractForDeal = functions.https.onCall(async (data, context) => {
+  const { dealId } = data;
+
+  if (!dealId) {
+    throw new functions.https.HttpsError('invalid-argument', 'dealId is required');
+  }
+
+  const db = admin.firestore();
+  const dealRef = db.collection('deals').doc(dealId);
+  const dealSnap = await dealRef.get();
+
+  if (!dealSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Deal not found');
+  }
+
+  const deal = dealSnap.data();
+
+  // إذا العقد موجود مسبقًا، رجّعه بدل إنشاء واحد جديد
+  if (deal.contractId) {
+    return {
+      contractId: deal.contractId,
+      templateType: deal.templateType || null,
+      status: deal.contractStatus || null,
+      alreadyExists: true,
+    };
+  }
+
+  let templateType = '';
+
+  switch (deal.listingType) {
+    case 'short_rent':
+      templateType = 'rent_short_3parties';
+      break;
+    case 'long_rent':
+      templateType = 'rent_long_3parties';
+      break;
+    case 'sale':
+      templateType = 'sale_3parties';
+      break;
+    default:
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Unsupported listingType'
+      );
+  }
+
+  const contractRef = await db.collection('contracts').add({
+    dealId,
+    propertyId: deal.propertyId,
+    ownerUserId: deal.ownerUserId || '',
+    customerUserId: deal.customerUserId || '',
+    templateType,
+    docusealSubmissionId: '',
+    buyerSigningUrl: '',
+    ownerSigningUrl: '',
+    buyerSigned: false,
+    ownerSigned: false,
+    status: 'pending',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await dealRef.update({
+    contractStatus: 'created',
+    contractId: contractRef.id,
+    templateType,
+    status: 'contract_created',
+  });
+
+  return {
+    contractId: contractRef.id,
+    templateType,
+    status: 'pending',
+    alreadyExists: false,
+  };
+});
+
+exports.queueAdminEmail = functions
+  .runWith({secrets: [cfWorkerSharedSecret]})
+  .https.onCall(async (data, context) => {
+    const workerPayload = buildAdminWorkerPayload(data || {});
+
+    functions.logger.info('Admin email worker call start', {
+      emailType: workerPayload.eventType,
+      url: ADMIN_EMAIL_WORKER_URL,
+      summary: workerPayload.summary,
+      entityId: workerPayload.entityId || null,
+    });
+
+    try {
+      const response = await fetch(ADMIN_EMAIL_WORKER_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${cfWorkerSharedSecret.value()}`,
+        },
+        body: JSON.stringify(workerPayload),
+      });
+      const responseText = await response.text();
+      let responseBody;
+
+      try {
+        responseBody = responseText ? JSON.parse(responseText) : null;
+      } catch (_) {
+        responseBody = {raw: responseText};
+      }
+
+      if (!response.ok) {
+        functions.logger.error('Admin email worker call failure', {
+          emailType: workerPayload.eventType,
+          url: ADMIN_EMAIL_WORKER_URL,
+          status: response.status,
+          response: responseBody,
+        });
+
+        throw new functions.https.HttpsError(
+          'internal',
+          'Cloudflare Worker email send failed'
+        );
+      }
+
+      functions.logger.info('Admin email worker call success', {
+        emailType: workerPayload.eventType,
+        url: ADMIN_EMAIL_WORKER_URL,
+        status: response.status,
+        response: responseBody,
+      });
+
+      return {
+        ok: true,
+        sent: true,
+        queued: response.status === 202,
+        status: response.status,
+        workerResponse: responseBody,
+      };
+    } catch (error) {
+      functions.logger.error('Admin email worker call failure', {
+        emailType: workerPayload.eventType,
+        url: ADMIN_EMAIL_WORKER_URL,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        'internal',
+        'Cloudflare Worker email send failed'
+      );
+    }
+  });

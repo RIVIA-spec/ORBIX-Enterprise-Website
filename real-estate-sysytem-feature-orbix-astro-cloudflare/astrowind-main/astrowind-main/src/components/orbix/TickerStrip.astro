@@ -1,0 +1,141 @@
+---
+export interface Props {
+  items: Array<Record<string, unknown>>;
+  colors?: { background?: string; text?: string };
+  separator?: 'none' | 'line' | 'dot';
+  speed?: number;
+  direction?: 'ltr' | 'rtl';
+  pauseOnHover?: boolean;
+  mobileBehavior?: 'scroll' | 'static' | 'stack';
+  ariaLabel?: string;
+  animationPreset?: string;
+}
+
+const {
+  items,
+  colors,
+  separator = 'line',
+  speed = 28,
+  direction = 'ltr',
+  pauseOnHover = true,
+  mobileBehavior = 'scroll',
+  ariaLabel = 'Orbix capabilities',
+  animationPreset = 'marquee',
+} = Astro.props;
+const labels = items
+  .map((item) => String(item.title || item.label || item.description || item.summary || item))
+  .filter(Boolean);
+const css = `--ticker-speed:${Math.max(8, Math.min(120, Number(speed) || 28))}s;--ticker-bg:${colors?.background || 'var(--orbix-blue)'};--ticker-text:${colors?.text || '#fff'};`;
+---
+
+<section
+  class:list={[
+    'orbix-ticker-strip',
+    `orbix-ticker-strip--${direction}`,
+    `orbix-ticker-strip--mobile-${mobileBehavior}`,
+    {
+      'orbix-ticker-strip--pause': pauseOnHover,
+      'orbix-ticker-strip--static': animationPreset === 'none' || animationPreset === 'static',
+    },
+  ]}
+  style={css}
+  aria-label={ariaLabel}
+  data-orbix-ticker
+>
+  <p class="sr-only">{labels.join(' • ')}</p>
+  <div class="orbix-ticker-strip__viewport" aria-hidden="true">
+    <div class="orbix-ticker-strip__track">
+      {
+        [...labels, ...labels].map((label) => (
+          <span class:list={['orbix-ticker-strip__item', `orbix-ticker-strip__item--${separator}`]}>{label}</span>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .orbix-ticker-strip {
+    background: var(--ticker-bg);
+    color: var(--ticker-text);
+    overflow: hidden;
+    width: 100%;
+  }
+  .orbix-ticker-strip__viewport {
+    overflow: hidden;
+    width: 100%;
+  }
+  .orbix-ticker-strip__track {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    animation: orbix-ticker var(--ticker-speed) linear infinite;
+  }
+  .orbix-ticker-strip--rtl .orbix-ticker-strip__track {
+    animation-name: orbix-ticker-rtl;
+  }
+  .orbix-ticker-strip__item {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 0.75rem 2rem;
+    font-family: var(--orbix-font-code, monospace);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .orbix-ticker-strip__item--line {
+    border-inline-end: 1px solid rgb(255 255 255 / 0.35);
+  }
+  .orbix-ticker-strip__item--dot::after {
+    content: '•';
+    margin-inline-start: 2rem;
+    opacity: 0.65;
+  }
+  .orbix-ticker-strip--pause:hover .orbix-ticker-strip__track {
+    animation-play-state: paused;
+  }
+  .orbix-ticker-strip--static .orbix-ticker-strip__track {
+    animation: none;
+    transform: none;
+  }
+  .orbix-ticker-strip--mobile-static .orbix-ticker-strip__track {
+    animation: none;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .orbix-ticker-strip--mobile-stack .orbix-ticker-strip__track {
+    animation: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+  }
+  @media (max-width: 767px) {
+    .orbix-ticker-strip--mobile-static .orbix-ticker-strip__item,
+    .orbix-ticker-strip--mobile-stack .orbix-ticker-strip__item {
+      padding-block: 0.55rem;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .orbix-ticker-strip__track {
+      animation: none;
+      transform: none;
+    }
+  }
+  @keyframes orbix-ticker {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes orbix-ticker-rtl {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(50%);
+    }
+  }
+</style>

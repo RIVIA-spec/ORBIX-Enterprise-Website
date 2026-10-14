@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /login
+Disallow: /profile
+Disallow: /account
+
+Sitemap: https://orbixcity.com/sitemap.xml

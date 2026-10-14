@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // دالة مساعدة: هل المستخدم صاحب التطبيق
+    function isAppOwner() {
+      return request.auth != null
+          && exists(/databases/(default)/documents/users/$(request.auth.uid))
+          && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    // دالة مساعدة: هل المستخدم أدمن؟
+    function isAdmin() {
+      return request.auth != null
+          && exists(/databases/(default)/documents/users/$(request.auth.uid))
+          && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 1. صور الهوية
+    match /id_verifications/{userId}/{allPaths=**} {
+      // القراءة: المستخدم نفسه أو الأدمن
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      
+      // الكتابة (إنشاء، تحديث، حذف): المستخدم نفسه أو الأدمن
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // 2. صور العقارات العادية
+    match /properties/{userId}/property_images/{allPaths=**} {
+      // القراءة: الجميع
+      allow read: if true;
+      
+      // الكتابة: صاحب العقار أو الأدمن
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // 3. صور الجولات البانوراما
+    match /properties/{userId}/panorama_tours/{allPaths=**} {
+      // القراءة: الجميع
+      allow read: if true;
+      
+      // الكتابة: صاحب العقار أو الأدمن
+      allow create, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // 4. صور الفنادق
+    match /hotels/{userId}/{allPaths=**} {
+      // القراءة: الجميع
+      allow read: if true;
+      
+      // الكتابة (إنشاء، تحديث، حذف): المستخدم نفسه أو صاحب التطبيق أو الأدمن
+      allow write: if request.auth != null && (request.auth.uid == userId || isAppOwner() || isAdmin());
+    }
+
+    // 5. كل شيء آخر ممنوع
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+  }
+}
+

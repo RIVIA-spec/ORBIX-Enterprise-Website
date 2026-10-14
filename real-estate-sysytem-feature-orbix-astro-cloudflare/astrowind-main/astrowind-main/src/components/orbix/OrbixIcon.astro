@@ -1,0 +1,162 @@
+---
+export interface Props {
+  name?: string;
+  src?: string;
+  variant?: 'blue' | 'white' | 'navy' | 'muted';
+  size?: 'small' | 'medium' | 'large';
+  class?: string;
+}
+
+const { name = 'orbix', src, variant = 'blue', size = 'medium', class: className = '' } = Astro.props;
+
+const normalizedName = name
+  .toLowerCase()
+  .replace(/\.[a-z0-9]+$/i, '')
+  .replace(/_[a-f0-9]{8,}$/i, '')
+  .replace(/[_\s]+/g, '-');
+
+const iconMap: Record<string, string> = {
+  orbix: 'property-home.png',
+
+  home: 'property-home.png',
+  house: 'property-home.png',
+  property: 'property-home.png',
+  'property-home': 'property-home.png',
+  'real-estate': 'property-home.png',
+  residential: 'property-home.png',
+
+  building: 'commercial-building.png',
+  commercial: 'commercial-building.png',
+  office: 'commercial-building.png',
+  offices: 'commercial-building.png',
+  'commercial-building': 'commercial-building.png',
+
+  hotel: 'hospitality.png',
+  hotels: 'hospitality.png',
+  hospitality: 'hospitality.png',
+
+  key: 'key-handover.png',
+  handover: 'key-handover.png',
+  'key-handover': 'key-handover.png',
+
+  map: 'location.png',
+  pin: 'location.png',
+  location: 'location.png',
+  city: 'location.png',
+  'city-guides': 'location.png',
+
+  document: 'contract.png',
+  contracts: 'contract.png',
+  contract: 'contract.png',
+  legal: 'contract.png',
+  transactions: 'contract.png',
+  'e-transactions': 'contract.png',
+
+  analytics: 'growth.png',
+  investment: 'growth.png',
+  growth: 'growth.png',
+
+  search: 'property-search.png',
+  discovery: 'property-search.png',
+  'property-search': 'property-search.png',
+
+  people: 'community.png',
+  partners: 'community.png',
+  clients: 'community.png',
+  community: 'community.png',
+
+  environment: 'nature.png',
+  landscape: 'nature.png',
+  nature: 'nature.png',
+
+  shield: 'protection.png',
+  verification: 'protection.png',
+  verified: 'protection.png',
+  security: 'protection.png',
+  protection: 'protection.png',
+  'technical-support': 'protection.png',
+
+  technology: 'smart-home.png',
+  interactive: 'smart-home.png',
+  'interactive-technology': 'smart-home.png',
+  'smart-home': 'smart-home.png',
+  'virtual-tour': 'smart-home.png',
+  'virtual-tours': 'smart-home.png',
+};
+
+const fileName = iconMap[normalizedName] || iconMap.orbix;
+const fallbackSource = `/orbix/brand/icons/${fileName}`;
+const cmsSource = typeof src === 'string' && src.trim() ? src.trim() : undefined;
+const label = normalizedName.replace(/-/g, ' ');
+
+const sizeClass = {
+  small: 'size-14',
+  medium: 'size-20',
+  large: 'size-28',
+}[size];
+---
+
+<orbix-safe-icon
+  class:list={[
+    'orbix-brand-icon inline-flex shrink-0 items-center justify-center',
+    sizeClass,
+    `orbix-brand-icon--${variant}`,
+    className,
+  ]}
+  title={label}
+  aria-hidden="true"
+>
+  {
+    cmsSource && (
+      <img
+        src={cmsSource}
+        alt=""
+        class="block size-full object-contain"
+        loading="lazy"
+        decoding="async"
+        data-orbix-cms-icon
+      />
+    )
+  }
+
+  <img
+    src={fallbackSource}
+    alt=""
+    class="block size-full object-contain"
+    loading="lazy"
+    decoding="async"
+    hidden={Boolean(cmsSource)}
+    data-orbix-fallback-icon
+  />
+</orbix-safe-icon>
+
+<style>
+  orbix-safe-icon > [hidden] {
+    display: none !important;
+  }
+</style>
+<script>
+  class OrbixSafeIcon extends HTMLElement {
+    connectedCallback() {
+      const cmsImage = this.querySelector<HTMLImageElement>('[data-orbix-cms-icon]');
+      const fallbackImage = this.querySelector<HTMLImageElement>('[data-orbix-fallback-icon]');
+
+      if (!fallbackImage || !cmsImage) return;
+
+      const showFallback = () => {
+        cmsImage.hidden = true;
+        fallbackImage.hidden = false;
+      };
+
+      cmsImage.addEventListener('error', showFallback, { once: true });
+
+      if (cmsImage.complete && cmsImage.naturalWidth === 0) {
+        showFallback();
+      }
+    }
+  }
+
+  if (!customElements.get('orbix-safe-icon')) {
+    customElements.define('orbix-safe-icon', OrbixSafeIcon);
+  }
+</script>

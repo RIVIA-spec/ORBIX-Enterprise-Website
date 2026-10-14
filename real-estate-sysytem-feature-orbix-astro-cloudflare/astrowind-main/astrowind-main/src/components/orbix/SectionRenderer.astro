@@ -1,0 +1,858 @@
+---
+import Button from '~/components/ui/Button.astro';
+import type { BrandSettings, Section, StrapiMedia } from '~/lib/strapi/types';
+import { mediaUrl } from '~/lib/strapi/client';
+import { normalizeBrandSettings } from '~/lib/strapi/brand';
+import OrbixCarousel from './OrbixCarousel.astro';
+import OrbixIcon from './OrbixIcon.astro';
+import OrbixPattern from './OrbixPattern.astro';
+import PannellumViewer from './PannellumViewer.astro';
+import { sanitizeCmsHtml } from '~/lib/content/sanitize';
+import { appStoreLinks, cmsActionFromLink, safeContentItemHref } from '~/lib/content/page-builder';
+
+export interface Props {
+  sections?: Section[];
+  brand: BrandSettings;
+}
+
+const { sections = [], brand } = Astro.props;
+const resolvedBrand = normalizeBrandSettings(brand, mediaUrl);
+
+const known = new Set([
+  'hero',
+  'banner',
+  'carousel',
+  'capability-strip',
+  'text-media',
+  'services-grid',
+  'creative-studio',
+  'virtual-tours',
+  'interactive-technology',
+  'industries',
+  'real-estate',
+  'hospitality',
+  'partners',
+  'clients',
+  'city-guides',
+  'guides',
+  'case-studies',
+  'articles-news',
+  'media-coverage',
+  'downloads',
+  'app-store-links',
+  'contact-cta',
+  'pattern-divider',
+  'faq',
+  'process',
+  'about',
+  'legal',
+  'article-body',
+  'case-study-body',
+  'tour-viewer',
+]);
+
+const visible = sections.filter((section): section is Section =>
+  Boolean(section && section.isVisible !== false && typeof section.sectionType === 'string' && section.sectionType)
+);
+const asAction = (cta?: Section['primaryCta'], variant: 'primary' | 'secondary' = 'primary') =>
+  cmsActionFromLink(cta, variant);
+const itemArray = (items?: Section['items']) => (Array.isArray(items) ? items : []);
+const sectionItems = (section: Section) => {
+  const source =
+    Array.isArray(section.contentItems) && section.contentItems.length
+      ? section.contentItems.filter((item) => item.isVisible !== false)
+      : section.items;
+
+  return itemArray(source)
+    .slice()
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+};
+
+const sectionAnimationClass = (preset: Section['animationPreset']) =>
+  ({
+    fade: 'orbix-reveal orbix-reveal--fade',
+    slide: 'orbix-reveal orbix-reveal--slide',
+    scale: 'orbix-reveal orbix-reveal--scale',
+    none: '',
+    static: '',
+    marquee: '',
+  })[preset || 'fade'];
+
+const cardStyleClass = (style: Section['cardStyle']) =>
+  ({
+    flat: 'orbix-card--flat',
+    outlined: 'orbix-card--outlined',
+    elevated: 'orbix-card--elevated',
+    glass: 'orbix-card--glass',
+  })[style || 'outlined'];
+
+const gridClass = (section: Section) => [
+  section.columnsMobile === 'two' ? 'grid-cols-2' : 'grid-cols-1',
+  section.columnsDesktop === 'two'
+    ? 'xl:grid-cols-2'
+    : section.columnsDesktop === 'four'
+      ? 'xl:grid-cols-4'
+      : 'xl:grid-cols-3',
+];
+
+const itemAnimationClass = (preset?: string) =>
+  ({
+    fade: 'orbix-reveal orbix-reveal--fade',
+    slide: 'orbix-reveal orbix-reveal--slide',
+    scale: 'orbix-reveal orbix-reveal--scale',
+    none: '',
+  })[preset || 'fade'];
+
+const hoverClass = (effect?: string) =>
+  ({
+    none: 'orbix-hover--none',
+    lift: 'orbix-hover--lift',
+    glow: 'orbix-hover--glow',
+    border: 'orbix-hover--border',
+  })[effect || 'lift'];
+
+const patternUrl = (section: Section, forcedVariant?: string) => {
+  if (section.customPattern) return mediaUrl(section.customPattern);
+  const variant = forcedVariant || section.patternSelection;
+  return (
+    {
+      'city-landmark': resolvedBrand.assets.cityLandmarkPattern,
+      'city-landmark-on-blue': resolvedBrand.assets.cityLandmarkPatternOnBlue,
+      circle: resolvedBrand.assets.circlePattern,
+      light: resolvedBrand.assets.lightPatternVariant || resolvedBrand.assets.cityLandmarkPatternOnBlue,
+      dark: resolvedBrand.assets.darkPatternVariant || resolvedBrand.assets.cityLandmarkPatternOnBlue,
+    } as Record<string, string | undefined>
+  )[String(variant || '')];
+};
+const iconUrl = (name: string, customIcon?: StrapiMedia) => {
+  if (customIcon) return mediaUrl(customIcon);
+  const library = resolvedBrand.assets.orbixIconLibrary;
+  if (!library.length) return undefined;
+  const needle = name.toLowerCase().replace(/[_\s]+/g, '-');
+  return mediaUrl(
+    library.find((asset) => {
+      const identity = `${asset.name || ''} ${asset.url || ''}`.toLowerCase().replace(/[_\s]+/g, '-');
+      return identity.includes(needle);
+    })
+  );
+};
+const colorToken = (token: unknown, fallback: keyof BrandSettings['colors']) => {
+  const colors = {
+    primaryBlue: resolvedBrand.tokens.primaryBlue,
+    secondaryLightBlue: resolvedBrand.tokens.blueLight,
+    blueLight: resolvedBrand.tokens.blueLight,
+    white: resolvedBrand.tokens.white,
+    navy: resolvedBrand.tokens.navy,
+    mainDarkBackground: resolvedBrand.tokens.dark,
+    dark: resolvedBrand.tokens.dark,
+    elevatedSurface: resolvedBrand.tokens.surface,
+    surface: resolvedBrand.tokens.surface,
+    pageBackground: resolvedBrand.tokens.pageBackground,
+    primaryText: resolvedBrand.tokens.bodyTextColor,
+    bodyTextColor: resolvedBrand.tokens.bodyTextColor,
+    headingColor: resolvedBrand.tokens.headingColor,
+    mutedText: resolvedBrand.tokens.mutedTextColor,
+    mutedTextColor: resolvedBrand.tokens.mutedTextColor,
+    borderColor: resolvedBrand.tokens.borderColor,
+    accentColor: resolvedBrand.tokens.blueLight,
+    interactionColor: resolvedBrand.tokens.interaction,
+  };
+  const key = String(token || fallback);
+  return colors[key as keyof typeof colors] || colors[fallback as keyof typeof colors] || resolvedBrand.tokens.white;
+};
+const sectionStyle = (section: Section) =>
+  `--orbix-section-bg:${colorToken(section.backgroundColorToken, 'white')};--orbix-section-text:${colorToken(section.textColorToken, 'navy')};`;
+---
+
+{
+  visible.map((section, index) => {
+    const type = section.sectionType || '';
+    if (!known.has(type)) {
+      if (import.meta.env.DEV) console.warn(`[sections] Unknown Strapi section "${type}" skipped.`);
+      if (section.isRequired) throw new Error(`Required Strapi section "${type}" is not registered.`);
+      return null;
+    }
+
+    const items = sectionItems(section);
+    const hasContent = Boolean(
+      section.title ||
+      section.eyebrow ||
+      section.summary ||
+      section.body ||
+      section.media?.length ||
+      items.length ||
+      section.primaryCta ||
+      section.secondaryCta ||
+      (type === 'app-store-links' && appStoreLinks(section, brand, mediaUrl).length)
+    );
+    if (!hasContent && type !== 'pattern-divider') return null;
+
+    if (type === 'carousel') {
+      return (
+        <OrbixCarousel
+          eyebrow={section.eyebrow}
+          title={section.title}
+          summary={section.summary}
+          slides={sectionItems(section)}
+        />
+      );
+    }
+
+    if (type === 'tour-viewer') {
+      return <PannellumViewer title={section.title} summary={section.summary} scenes={sectionItems(section)} />;
+    }
+
+    if (type === 'capability-strip') {
+      const capabilityItems = items.length
+        ? items
+        : [
+            { title: '360 tours' },
+            { title: 'Interactive websites' },
+            { title: '3D web' },
+            { title: 'Real-estate media' },
+            { title: 'Hotel guides' },
+            { title: 'Office solutions' },
+          ];
+
+      const repeatedCapabilityItems = [...capabilityItems, ...capabilityItems];
+
+      return (
+        <div
+          class="overflow-hidden border-y border-white/20 bg-[#0874ff] py-3 text-white"
+          role="region"
+          aria-label={section.ariaLabel || section.title || 'Orbix capabilities'}
+        >
+          <div class="orbix-ticker flex min-w-max items-center font-mono text-[10px] uppercase tracking-[0.22em] sm:text-xs">
+            {repeatedCapabilityItems.map((item) => (
+              <>
+                <span class="whitespace-nowrap px-5 sm:px-8">{String(item.title || item.name || '')}</span>
+                <span class="text-white/60" aria-hidden="true">
+                  •
+                </span>
+              </>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (type === 'pattern-divider') {
+      return (
+        <div class="relative h-24 overflow-hidden bg-[var(--orbix-page)]">
+          <OrbixPattern
+            variant={section.patternSelection || 'city-landmark'}
+            opacity={section.patternOpacity || 'subtle'}
+            position={section.patternPosition || 'bottom'}
+            src={patternUrl(section)}
+          />
+        </div>
+      );
+    }
+
+    if (type === 'hero') {
+      const primary = asAction(section.primaryCta);
+      const secondary = asAction(section.secondaryCta, 'secondary');
+      const heroMedia = section.media?.find(Boolean);
+      const heroMediaUrl = mediaUrl(heroMedia);
+      return (
+        <section
+          id={section.anchorId}
+          class:list={[
+            'orbix-light-section relative isolate overflow-hidden bg-white px-4 py-20 text-[var(--orbix-navy)] sm:px-6 md:py-28',
+            sectionAnimationClass(section.animationPreset),
+          ]}
+        >
+          {heroMediaUrl &&
+            (heroMedia?.mime?.startsWith('video/') ? (
+              <video
+                class="absolute inset-0 z-0 size-full object-cover opacity-25"
+                src={heroMediaUrl}
+                autoplay
+                muted
+                loop
+                playsinline
+                preload="metadata"
+              />
+            ) : (
+              <img
+                class="absolute inset-0 z-0 size-full object-cover opacity-25"
+                src={heroMediaUrl}
+                alt={heroMedia?.alternativeText || ''}
+                width={heroMedia?.width}
+                height={heroMedia?.height}
+                loading="eager"
+                decoding="async"
+              />
+            ))}
+          {heroMediaUrl && <div class="absolute inset-0 z-0 bg-[var(--orbix-page)]/70" aria-hidden="true" />}
+          <OrbixPattern
+            variant={section.patternSelection || 'city-landmark'}
+            opacity={section.patternOpacity || 'subtle'}
+            position={section.patternPosition || 'full'}
+            src={patternUrl(section)}
+            class="z-0"
+          />
+          <div class="relative z-10 mx-auto grid w-full max-w-7xl gap-12 lg:grid-cols-1 lg:items-center">
+            <div class="max-w-6xl">
+              {section.eyebrow && (
+                <p class="font-mono text-xs uppercase tracking-[0.24em] text-[var(--orbix-blue-light)]">
+                  {section.eyebrow}
+                </p>
+              )}
+              <h1 class="mt-6 max-w-5xl text-5xl font-semibold leading-[0.98] text-[var(--orbix-heading)] md:text-7xl">
+                {section.title}
+              </h1>
+              {section.summary && (
+                <p class="mt-7 max-w-2xl text-lg leading-8 text-[var(--orbix-muted)]">{section.summary}</p>
+              )}
+              <div class="mt-9 flex flex-wrap gap-3">
+                {primary && <Button {...primary} />}
+                {secondary && <Button {...secondary} class="border-white/20 bg-white/6 text-white hover:bg-white/12" />}
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    if (type === 'contact-cta') {
+      const primary = asAction(section.primaryCta);
+      return (
+        <section class="relative overflow-hidden bg-[var(--orbix-blue)] px-4 py-16 text-[var(--orbix-copy)] sm:px-6 md:py-24">
+          <OrbixPattern variant="circle" opacity="medium" src={patternUrl(section, 'circle')} />
+          <div class="relative mx-auto max-w-5xl">
+            {section.eyebrow && (
+              <p class="font-mono text-xs uppercase tracking-[0.22em] text-[var(--orbix-muted)]">{section.eyebrow}</p>
+            )}
+            <h2 class="mt-4 text-4xl font-semibold md:text-6xl">{section.title}</h2>
+            {section.summary && <p class="mt-5 max-w-2xl text-[var(--orbix-muted)]">{section.summary}</p>}
+            {primary && <Button {...primary} class="mt-8 bg-white text-[var(--orbix-navy)] hover:bg-white/90" />}
+          </div>
+        </section>
+      );
+    }
+
+    const primary = asAction(section.primaryCta);
+    const secondary = asAction(section.secondaryCta, 'secondary');
+    const hiddenEmpty =
+      ['partners', 'clients', 'media-coverage', 'downloads', 'case-studies'].includes(type) &&
+      !items.length &&
+      !section.summary;
+    if (hiddenEmpty) return null;
+
+    return (
+      <section
+        id={section.anchorId}
+        style={sectionStyle(section)}
+        class:list={[
+          'orbix-light-section relative overflow-hidden border-t border-[var(--orbix-border)] bg-[var(--orbix-section-bg)] px-4 py-16 text-[var(--orbix-section-text)] sm:px-6 md:py-24',
+          sectionAnimationClass(section.animationPreset),
+        ]}
+      >
+        {section.patternSelection !== 'none' && (
+          <OrbixPattern
+            variant={section.patternSelection || 'circle'}
+            opacity={section.patternOpacity || 'subtle'}
+            position={section.patternPosition || 'full'}
+            src={patternUrl(section)}
+          />
+        )}
+        {mediaUrl(section.watermark) && (
+          <img
+            class="pointer-events-none absolute bottom-0 end-0 z-0 max-h-64 max-w-[40%] object-contain opacity-10"
+            src={mediaUrl(section.watermark)}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+          />
+        )}
+        <div class="relative mx-auto max-w-7xl">
+          <div class="grid gap-10 lg:grid-cols-[0.42fr_1fr]">
+            <div>
+              <p class="font-mono text-xs uppercase tracking-[0.22em] text-[var(--orbix-blue-light)]">
+                {section.eyebrow || String(index + 1).padStart(2, '0')}
+              </p>
+              <h2 class="mt-5 text-3xl font-semibold leading-tight text-[var(--orbix-heading)] md:text-5xl">
+                {section.title}
+              </h2>
+            </div>
+            <div>
+              {section.summary && (
+                <p class="max-w-3xl text-lg leading-8 text-[var(--orbix-muted)]">{section.summary}</p>
+              )}
+              {section.body && (
+                <article class="prose prose-invert mt-8 max-w-none" set:html={sanitizeCmsHtml(section.body)} />
+              )}
+
+              {type !== 'services-grid' && section.media?.length ? (
+                <div class="mt-10 grid gap-4 sm:grid-cols-2">
+                  {section.media.filter(Boolean).map((asset) => {
+                    const src = mediaUrl(asset);
+                    return src && !asset.mime?.startsWith('video/') ? (
+                      <img
+                        class="aspect-video w-full rounded-lg border border-[var(--orbix-border)] object-cover"
+                        src={src}
+                        alt={asset.alternativeText || ''}
+                        width={asset.width}
+                        height={asset.height}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : src ? (
+                      <video
+                        class="aspect-video w-full rounded-lg border border-[var(--orbix-border)] object-cover"
+                        src={src}
+                        controls
+                        preload="metadata"
+                      />
+                    ) : null;
+                  })}
+                </div>
+              ) : null}
+
+              {type === 'app-store-links' ? (
+                <div
+                  class:list={[
+                    'mt-10 flex flex-col gap-3 sm:flex-row',
+                    section.alignment === 'center'
+                      ? 'justify-center'
+                      : section.alignment === 'end'
+                        ? 'justify-end'
+                        : 'justify-start',
+                  ]}
+                >
+                  {appStoreLinks(section, brand, mediaUrl).map((storeLink) =>
+                    storeLink.badgeUrl ? (
+                      <a href={storeLink.href} target="_blank" rel="noopener noreferrer" aria-label={storeLink.label}>
+                        <img
+                          class="h-12 w-auto"
+                          src={storeLink.badgeUrl}
+                          alt={storeLink.badgeAlt}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </a>
+                    ) : (
+                      <Button
+                        variant={storeLink.key === 'apple' ? 'primary' : 'secondary'}
+                        text={storeLink.label}
+                        href={storeLink.href}
+                        target="_blank"
+                      />
+                    )
+                  )}
+                </div>
+              ) : String(section.title || '')
+                  .trim()
+                  .toLowerCase() === 'reality reimagined' ? null : type === 'process' ? (
+                <ol class="mt-10 grid gap-4 md:grid-cols-2">
+                  {items.map((item, stepIndex) => (
+                    <li class="rounded-lg border border-[var(--orbix-border)] bg-[var(--orbix-surface)] p-5">
+                      <span class="font-mono text-sm text-[var(--orbix-blue-light)]">
+                        {String(stepIndex + 1).padStart(2, '0')}
+                      </span>
+                      <p class="mt-3 text-white">
+                        {String(item.title || item.label || item.description || item.summary || item)}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              ) : items.length ? (
+                <div class:list={['mt-10 grid gap-4', ...gridClass(section)]}>
+                  {items.map((item) => {
+                    const iconData = item.iconData as { key?: string; asset?: StrapiMedia } | undefined;
+                    const iconName = String(iconData?.key || item.icon || item.title || 'orbix');
+                    const href = safeContentItemHref(item);
+                    const content = (
+                      <>
+                        <OrbixIcon
+                          name={iconName}
+                          src={iconUrl(
+                            iconName,
+                            (item.iconMedia || item.customIcon || iconData?.asset) as StrapiMedia | undefined
+                          )}
+                          size={(item.iconSize as 'small' | 'medium' | 'large') || 'medium'}
+                          variant={(item.iconColor as 'blue' | 'white' | 'navy' | 'muted') || 'blue'}
+                        />
+                        <h3 class="mt-5 text-xl font-semibold text-[var(--orbix-heading)]">
+                          {String(item.title || item.name || '')}
+                        </h3>
+                        <p class="mt-3 text-sm leading-6 text-[var(--orbix-muted)]">
+                          {String(item.description || item.summary || '')}
+                        </p>
+                      </>
+                    );
+                    const classes = [
+                      'group rounded-lg border border-[var(--orbix-border)] bg-[var(--orbix-surface)] p-6 transition',
+                      cardStyleClass(section.cardStyle),
+                      hoverClass(String(item.hoverEffect || 'lift')),
+                      itemAnimationClass(
+                        String(item.animationPreset || (section.staggerItems === false ? 'none' : 'fade'))
+                      ),
+                    ];
+                    const style = `animation-delay: ${Number(item.animationDelay || 0)}ms`;
+
+                    return href ? (
+                      <a
+                        class:list={classes}
+                        style={style}
+                        href={href}
+                        target={item.openInNewTab ? '_blank' : undefined}
+                        rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <div class:list={classes} style={style}>
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div class="mt-10 flex flex-wrap gap-3">
+                {primary && <Button {...primary} />}
+                {secondary && <Button {...secondary} class="border-white/20 bg-white/6 text-white hover:bg-white/12" />}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  })
+}
+
+<style>
+  .orbix-ticker {
+    animation: orbix-marquee 26s linear infinite;
+  }
+
+  @keyframes orbix-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orbix-ticker {
+      animation: none;
+      transform: none;
+      flex-wrap: wrap;
+      min-width: 0;
+      padding-inline: 1rem;
+    }
+  }
+</style>
+
+<style is:global>
+  /* ORBIX_APP_SHOWCASE_STYLES */
+
+  .orbix-app-showcase {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    min-height: 31rem;
+    place-items: center;
+    padding: 2rem 1rem;
+    overflow: hidden;
+    border: 1px solid var(--orbix-border);
+    border-radius: 1.75rem;
+    background: radial-gradient(circle at 50% 20%, rgb(8 116 255 / 0.18), transparent 48%), var(--orbix-surface);
+    box-shadow: var(--orbix-shadow);
+  }
+
+  .orbix-phone {
+    width: min(17rem, 78vw);
+    padding: 0.55rem;
+    border: 1px solid rgb(8 116 255 / 0.35);
+    border-radius: 2.4rem;
+    background: #041126;
+    box-shadow:
+      0 35px 75px rgb(0 20 55 / 0.28),
+      inset 0 0 0 2px rgb(255 255 255 / 0.04);
+    transform: rotate(2deg);
+  }
+
+  .orbix-phone__speaker {
+    width: 4rem;
+    height: 0.32rem;
+    margin: 0.35rem auto 0.65rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.2);
+  }
+
+  .orbix-phone__screen {
+    position: relative;
+    min-height: 27rem;
+    overflow: hidden;
+    border-radius: 1.9rem;
+    background: linear-gradient(160deg, rgb(8 116 255 / 0.2), transparent 42%), #061a38;
+    color: #ffffff;
+  }
+
+  .orbix-phone__top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1.1rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  }
+
+  .orbix-phone__mini-mark {
+    width: 1.35rem;
+    height: 1.35rem;
+    border: 0.25rem solid #0874ff;
+    border-radius: 50%;
+  }
+
+  .orbix-phone__content {
+    padding: 1.3rem;
+    text-align: right;
+  }
+
+  .orbix-phone__eyebrow {
+    color: #79b5ff;
+    font-family: var(--orbix-font-code);
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+  }
+
+  .orbix-phone__content h2 {
+    margin-top: 0.8rem;
+    color: #ffffff;
+    font-size: 1.65rem;
+    font-weight: 650;
+    line-height: 1.25;
+  }
+
+  .orbix-phone__content > p:not(.orbix-phone__eyebrow) {
+    margin-top: 0.75rem;
+    color: rgb(255 255 255 / 0.68);
+    font-size: 0.78rem;
+    line-height: 1.75;
+  }
+
+  .orbix-phone__property {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1.4rem;
+    padding: 0.7rem;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 0.06);
+  }
+
+  .orbix-phone__image {
+    display: grid;
+    min-height: 7rem;
+    place-items: center;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, rgb(8 116 255 / 0.58), rgb(4 17 38 / 0.8)), #0874ff;
+  }
+
+  .orbix-phone__image span {
+    display: grid;
+    width: 3.7rem;
+    height: 3.7rem;
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 0.5);
+    border-radius: 50%;
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  .orbix-phone__property strong,
+  .orbix-phone__property small {
+    display: block;
+  }
+
+  .orbix-phone__property strong {
+    color: #ffffff;
+    font-size: 0.8rem;
+  }
+
+  .orbix-phone__property small {
+    margin-top: 0.25rem;
+    color: rgb(255 255 255 / 0.55);
+    font-size: 0.65rem;
+  }
+
+  .orbix-phone__nav {
+    position: absolute;
+    right: 1rem;
+    bottom: 0.8rem;
+    left: 1rem;
+    display: flex;
+    justify-content: space-around;
+    padding: 0.8rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 1rem;
+    background: rgb(2 10 25 / 0.86);
+  }
+
+  .orbix-phone__nav span {
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 0.2rem solid #0874ff;
+    border-radius: 50%;
+  }
+
+  .orbix-app-caption {
+    margin-top: 1.4rem;
+    text-align: center;
+  }
+
+  .orbix-app-caption p {
+    color: var(--orbix-blue);
+    font-family: var(--orbix-font-code);
+    font-size: 0.6rem;
+    letter-spacing: 0.22em;
+  }
+
+  .orbix-app-caption strong,
+  .orbix-app-caption span {
+    display: block;
+  }
+
+  .orbix-app-caption strong {
+    margin-top: 0.4rem;
+    color: var(--orbix-heading);
+    font-size: 1.05rem;
+  }
+
+  .orbix-app-caption span {
+    margin-top: 0.25rem;
+    color: var(--orbix-muted);
+    font-size: 0.72rem;
+  }
+
+  @media (max-width: 1023px) {
+    .orbix-app-showcase {
+      max-width: 34rem;
+      margin-inline: auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .orbix-phone {
+      animation: orbix-phone-float 5s ease-in-out infinite;
+    }
+
+    @keyframes orbix-phone-float {
+      0%,
+      100% {
+        transform: rotate(2deg) translateY(0);
+      }
+
+      50% {
+        transform: rotate(0deg) translateY(-0.55rem);
+      }
+    }
+  }
+</style>
+
+<style is:global>
+  /* ORBIX_VISUAL_CONTROLS */
+
+  .orbix-reveal {
+    animation-duration: 620ms;
+    animation-fill-mode: both;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .orbix-reveal--fade {
+    animation-name: orbix-visual-fade;
+  }
+
+  .orbix-reveal--slide {
+    animation-name: orbix-visual-slide;
+  }
+
+  .orbix-reveal--scale {
+    animation-name: orbix-visual-scale;
+  }
+
+  .orbix-card--flat {
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .orbix-card--outlined {
+    border-color: var(--orbix-border);
+  }
+
+  .orbix-card--elevated {
+    box-shadow: 0 22px 55px rgb(1 106 250 / 0.16);
+  }
+
+  .orbix-card--glass {
+    background: rgb(255 255 255 / 0.07);
+    backdrop-filter: blur(18px);
+  }
+
+  .orbix-hover--lift:hover {
+    transform: translateY(-0.4rem);
+  }
+
+  .orbix-hover--glow:hover {
+    border-color: var(--orbix-blue);
+    box-shadow: 0 0 34px rgb(1 106 250 / 0.32);
+  }
+
+  .orbix-hover--border:hover {
+    border-color: var(--orbix-blue);
+  }
+
+  .orbix-hover--none:hover {
+    transform: none;
+  }
+
+  @keyframes orbix-visual-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes orbix-visual-slide {
+    from {
+      opacity: 0;
+      transform: translateY(1.4rem);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes orbix-visual-scale {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orbix-reveal {
+      animation: none !important;
+    }
+
+    .orbix-hover--lift:hover {
+      transform: none;
+    }
+  }
+</style>

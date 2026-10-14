@@ -1,0 +1,127 @@
+﻿{
+    "collectionName":  "components_sections_section_items",
+    "info":  {
+                 "displayName":  "Section Item",
+                 "description":  "Structured card, step, link, service or content item"
+             },
+    "options":  {
+
+                },
+    "attributes":  {
+                       "isVisible":  {
+                                         "type":  "boolean",
+                                         "default":  true
+                                     },
+                       "label":  {
+                                     "type":  "string"
+                                 },
+                       "title":  {
+                                     "type":  "string",
+                                     "required":  true
+                                 },
+                       "summary":  {
+                                       "type":  "text"
+                                   },
+                       "description":  {
+                                           "type":  "text"
+                                       },
+                       "url":  {
+                                   "type":  "string"
+                               },
+                       "icon":  {
+                                    "type":  "string"
+                                },
+                       "iconData":  {
+                                           "type":  "component",
+                                           "component":  "shared.icon",
+                                           "repeatable":  false
+                                       },
+                       "iconMedia":  {
+                                           "type":  "media",
+                                           "multiple":  false,
+                                           "allowedTypes":  ["images"]
+                                       },
+                       "badge":  {
+                                     "type":  "string"
+                                 },
+                       "image":  {
+                                     "type":  "media",
+                                     "multiple":  false,
+                                     "required":  false,
+                                     "allowedTypes":  [
+                                                          "images"
+                                                      ]
+                                 },
+                       "sortOrder":  {
+                                         "type":  "integer",
+                                         "default":  0
+                                     },
+                       "openInNewTab":  {
+                                            "type":  "boolean",
+                                            "default":  false
+                                        },
+                       "iconSource":  {
+                                          "type":  "enumeration",
+                                          "enum":  [
+                                                       "library",
+                                                       "upload"
+                                                   ],
+                                          "default":  "library"
+                                      },
+                       "customIcon":  {
+                                          "type":  "media",
+                                          "multiple":  false,
+                                          "required":  false,
+                                          "allowedTypes":  [
+                                                               "images"
+                                                           ]
+                                      },
+                       "iconSize":  {
+                                        "type":  "enumeration",
+                                        "enum":  [
+                                                     "small",
+                                                     "medium",
+                                                     "large"
+                                                 ],
+                                        "default":  "medium"
+                                    },
+                       "iconColor":  {
+                                         "type":  "enumeration",
+                                         "enum":  [
+                                                      "blue",
+                                                      "white",
+                                                      "navy",
+                                                      "muted"
+                                                  ],
+                                         "default":  "blue"
+                                     },
+                       "animationPreset":  {
+                                               "type":  "enumeration",
+                                               "enum":  [
+                                                            "none",
+                                                            "fade",
+                                                            "slide",
+                                                            "scale",
+                                                            "static",
+                                                            "marquee"
+                                                        ],
+                                               "default":  "fade"
+                                           },
+                       "animationDelay":  {
+                                              "type":  "integer",
+                                              "default":  0,
+                                              "min":  0,
+                                              "max":  3000
+                                          },
+                       "hoverEffect":  {
+                                           "type":  "enumeration",
+                                           "enum":  [
+                                                        "none",
+                                                        "lift",
+                                                        "glow",
+                                                        "border"
+                                                    ],
+                                           "default":  "lift"
+                                       }
+                   }
+}

@@ -1,0 +1,9 @@
+---
+import ThemeStyles from './ThemeStyles.astro';
+import { getBrandSettings } from '~/lib/strapi/client';
+
+const brand = await getBrandSettings();
+---
+
+<ThemeStyles brand={brand} />
+<slot />

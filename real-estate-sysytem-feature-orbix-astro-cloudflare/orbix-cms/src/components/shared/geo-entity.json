@@ -1,0 +1,13 @@
+﻿{
+  "collectionName": "components_shared_geo_entities",
+  "info": { "displayName": "GEO Entity" },
+  "options": {},
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "entityType": { "type": "enumeration", "enum": ["Organization", "Brand", "Product", "Place", "Person"], "default": "Brand" },
+    "description": { "type": "text", "required": true },
+    "canonicalUrl": { "type": "string" },
+    "sameAs": { "type": "json" },
+    "relationship": { "type": "string" }
+  }
+}

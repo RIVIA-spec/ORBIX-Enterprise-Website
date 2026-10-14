@@ -1,0 +1,13 @@
+﻿name = "orbixcity-admin-email-worker"
+account_id = "3ae3b3c1958db7473d0f600067fef8fe"
+main = "src/index.js"
+compatibility_date = "2026-04-09"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ADMIN_NOTIFICATION_RECIPIENT = "malekzeini.mz@gmail.com"
+
+[[send_email]]
+name = "ADMIN_NOTIFICATION_EMAIL"
+destination_address = "malekzeini.mz@gmail.com"
+allowed_sender_addresses = ["info@orbixcity.com"]

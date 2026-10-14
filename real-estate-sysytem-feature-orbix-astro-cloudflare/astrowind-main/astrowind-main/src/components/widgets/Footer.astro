@@ -1,0 +1,100 @@
+---
+import { Icon } from 'astro-icon/components';
+import OrbixLogo from '~/components/orbix/OrbixLogo.astro';
+import { getHomePermalink } from '~/utils/permalinks';
+import type { BrandSettings } from '~/lib/strapi/types';
+
+interface Link {
+  text?: string;
+  href?: string;
+  ariaLabel?: string;
+  icon?: string;
+}
+
+interface Links {
+  title?: string;
+  links: Array<Link>;
+}
+
+export interface Props {
+  brand: BrandSettings;
+  links: Array<Links>;
+  secondaryLinks: Array<Link>;
+  socialLinks: Array<Link>;
+  footNote?: string;
+  theme?: string;
+}
+
+const { brand, socialLinks = [], secondaryLinks = [], links = [], footNote = '', theme = 'dark' } = Astro.props;
+---
+
+<footer
+  class:list={[
+    { dark: theme === 'dark' },
+    'relative overflow-hidden border-t border-white/10 bg-[var(--orbix-dark)] not-prose',
+  ]}
+>
+  <div class="relative mx-auto max-w-7xl px-4 py-12 text-white sm:px-6 md:py-16">
+    <div class="grid grid-cols-12 gap-8">
+      <div class="col-span-12 lg:col-span-4">
+        <a class="inline-block" href={getHomePermalink()}><OrbixLogo brand={brand} variant="light" /></a>
+        <p class="mt-4 max-w-sm text-sm leading-6 text-white/68">
+          {brand.riviaRelationship || brand.entityDefinition}
+        </p>
+        <div class="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          {
+            secondaryLinks.map(({ text, href }) => (
+              <a class="text-white/70 transition hover:text-[var(--orbix-blue-light)]" href={href}>
+                {text}
+              </a>
+            ))
+          }
+        </div>
+      </div>
+
+      {
+        links.map(({ title, links }) => (
+          <div class="col-span-6 md:col-span-3 lg:col-span-2">
+            <div class="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-[var(--orbix-blue-light)]">{title}</div>
+            {links?.length ? (
+              <ul class="space-y-2 text-sm">
+                {links.map(({ text, href, ariaLabel }) => (
+                  <li>
+                    <a class="text-white/70 transition hover:text-white" href={href} aria-label={ariaLabel}>
+                      {text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="mt-10 flex flex-col gap-5 border-t border-white/10 pt-6 md:flex-row md:items-center md:justify-between">
+      <div class="text-sm text-white/60">
+        {footNote}
+      </div>
+
+      {
+        socialLinks?.length ? (
+          <ul class="-ml-2 flex flex-wrap">
+            {socialLinks.map(({ ariaLabel, href, text, icon }) => (
+              <li>
+                <a
+                  class="inline-flex items-center rounded-lg p-2.5 text-sm text-white/70 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-4 focus:ring-[var(--orbix-blue)]/30"
+                  aria-label={ariaLabel}
+                  href={href}
+                >
+                  {icon && <Icon name={icon} class="h-5 w-5" />}
+                  {text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : null
+      }
+    </div>
+  </div>
+</footer>

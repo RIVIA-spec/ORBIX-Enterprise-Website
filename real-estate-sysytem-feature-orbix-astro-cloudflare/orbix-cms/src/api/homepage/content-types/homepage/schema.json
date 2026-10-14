@@ -1,0 +1,232 @@
+{
+  "kind": "singleType",
+  "collectionName": "homepages",
+  "info": {
+    "singularName": "homepage",
+    "pluralName": "homepages",
+    "displayName": "Homepage"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "heroLabel": {
+      "type": "string"
+    },
+    "heroTitle": {
+      "type": "text"
+    },
+    "heroSubtitle": {
+      "type": "text"
+    },
+    "heroImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "heroCarousel": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::banner.banner"
+    },
+    "primaryCtaText": {
+      "type": "string"
+    },
+    "primaryCtaUrl": {
+      "type": "string"
+    },
+    "secondaryCtaText": {
+      "type": "string"
+    },
+    "secondaryCtaUrl": {
+      "type": "string"
+    },
+    "leadArticleSlug": {
+      "type": "string"
+    },
+    "featuredArticleSlugs": {
+      "type": "json"
+    },
+    "featuredGuideSlugs": {
+      "type": "json"
+    },
+    "featuredServiceSlugs": {
+      "type": "json"
+    },
+    "googlePlayUrl": {
+      "type": "string"
+    },
+    "appStoreUrl": {
+      "type": "string"
+    },
+    "appLinksTitle": {
+      "type": "string"
+    },
+    "appLinksDescription": {
+      "type": "text"
+    },
+    "featuredProjectSlugs": {
+      "type": "json"
+    },
+    "latestSectionEyebrow": {
+      "type": "string"
+    },
+    "latestSectionTitle": {
+      "type": "string"
+    },
+    "latestSectionDescription": {
+      "type": "text"
+    },
+    "contributorsSectionEyebrow": {
+      "type": "string"
+    },
+    "contributorCards": {
+      "type": "json"
+    },
+    "projectsSectionEyebrow": {
+      "type": "string"
+    },
+    "projectsSectionTitle": {
+      "type": "string"
+    },
+    "projectsSectionDescription": {
+      "type": "text"
+    },
+    "projectsSectionCtaText": {
+      "type": "string"
+    },
+    "projectsSectionCtaUrl": {
+      "type": "string"
+    },
+    "entrepreneurshipSectionEyebrow": {
+      "type": "string"
+    },
+    "entrepreneurshipSectionTitle": {
+      "type": "string"
+    },
+    "entrepreneurshipSectionDescription": {
+      "type": "text"
+    },
+    "entrepreneurshipSectionUrl": {
+      "type": "string"
+    },
+    "entrepreneurshipSectionLinkLabel": {
+      "type": "string"
+    },
+    "architectureSectionEyebrow": {
+      "type": "string"
+    },
+    "architectureSectionTitle": {
+      "type": "string"
+    },
+    "architectureSectionDescription": {
+      "type": "text"
+    },
+    "architectureSectionUrl": {
+      "type": "string"
+    },
+    "architectureSectionLinkLabel": {
+      "type": "string"
+    },
+    "callForCreatorsTitle": {
+      "type": "string"
+    },
+    "callForCreatorsText": {
+      "type": "text"
+    },
+    "callForCreatorsCtaText": {
+      "type": "string"
+    },
+    "callForCreatorsCtaUrl": {
+      "type": "string"
+    },
+    "conceptsSectionEyebrow": {
+      "type": "string"
+    },
+    "conceptsSectionTitle": {
+      "type": "string"
+    },
+    "conceptsSectionDescription": {
+      "type": "text"
+    },
+    "conceptItems": {
+      "type": "json"
+    },
+    "prefooterCta": {
+      "type": "json"
+    },
+    "seoTitle": {
+      "type": "string"
+    },
+    "seoDescription": {
+      "type": "text"
+    },
+    "canonicalUrl": {
+      "type": "string"
+    },
+    "ogTitle": {
+      "type": "string"
+    },
+    "ogDescription": {
+      "type": "text"
+    },
+    "ogImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "twitterTitle": {
+      "type": "string"
+    },
+    "twitterDescription": {
+      "type": "text"
+    },
+    "robots": {
+      "type": "enumeration",
+      "enum": [
+        "index_follow",
+        "noindex_follow",
+        "index_nofollow",
+        "noindex_nofollow"
+      ]
+    },
+    "focusKeyword": {
+      "type": "string"
+    },
+    "secondaryKeywords": {
+      "type": "json"
+    },
+    "aiSummary": {
+      "type": "text"
+    },
+    "answerSnippet": {
+      "type": "text"
+    },
+    "llmSummary": {
+      "type": "text"
+    },
+    "entityMentions": {
+      "type": "json"
+    },
+    "geoTopics": {
+      "type": "json"
+    },
+    "geoQuestions": {
+      "type": "json"
+    },
+    "structuredDataOverride": {
+      "type": "json"
+    },
+    "sections": {
+      "type": "dynamiczone",
+      "components": [
+        "sections.generic-section"
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+﻿{
+  "collectionName": "components_brand_design_options",
+  "info": { "displayName": "Brand Design Options" },
+  "options": {},
+  "attributes": {
+    "buttonStyle": { "type": "enumeration", "enum": ["solid", "outline", "ghost", "link"], "default": "solid" },
+    "cardStyle": { "type": "enumeration", "enum": ["flat", "outlined", "elevated", "glass"], "default": "outlined" },
+    "borderRadius": { "type": "enumeration", "enum": ["none", "sm", "md", "lg"], "default": "md" },
+    "shadowStyle": { "type": "enumeration", "enum": ["none", "soft", "medium"], "default": "soft" },
+    "sectionBackground": { "type": "enumeration", "enum": ["white", "light-blue", "blue", "navy", "dark"], "default": "white" },
+    "patternVariant": { "type": "enumeration", "enum": ["none", "city-landmark", "circle", "light", "dark"], "default": "city-landmark" },
+    "patternPosition": { "type": "enumeration", "enum": ["top", "center", "bottom", "full"], "default": "full" },
+    "patternOpacity": { "type": "enumeration", "enum": ["none", "subtle", "medium", "strong"], "default": "subtle" },
+    "iconColorVariant": { "type": "enumeration", "enum": ["blue", "white", "navy", "muted"], "default": "blue" },
+    "sectionVariant": { "type": "enumeration", "enum": ["light", "dark", "blue"], "default": "light" },
+    "motionPreset": { "type": "enumeration", "enum": ["none", "fade", "slide", "scale"], "default": "fade" },
+    "contentWidth": { "type": "enumeration", "enum": ["narrow", "default", "wide", "full"], "default": "default" },
+    "sectionSpacing": { "type": "enumeration", "enum": ["compact", "default", "spacious"], "default": "default" }
+  }
+}

@@ -1,0 +1,344 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================
+    // Helpers
+    // =========================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return userExists() && getUserData().role == role;
+    }
+
+    function isAppOwner() {
+      return hasRole('owner');
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isStaff() {
+      return isAppOwner() || isAdmin();
+    }
+
+    function isVerifiedUser() {
+      return userExists() && getUserData().isVerified == true;
+    }
+
+    function isUserVerified(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId))
+        && get(/databases/$(database)/documents/users/$(userId)).data.isVerified == true;
+    }
+
+    function isResourceOwner() {
+      return isSignedIn() && request.auth.uid == resource.data.ownerId;
+    }
+
+    function isDealParty() {
+      return isSignedIn()
+        && (
+          request.auth.uid == resource.data.customerUserId ||
+          request.auth.uid == resource.data.ownerUserId
+        );
+    }
+
+    // =========================================================
+    // users
+    // =========================================================
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isStaff());
+      allow delete: if isAppOwner();
+    }
+
+    // =========================================================
+    // notifications
+    // =========================================================
+    match /users/{userId}/notifications/{notifId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true
+        && resource.data.read == false;
+
+      allow create, delete: if isStaff();
+    }
+
+    // =========================================================
+    // favorites
+    // =========================================================
+    match /users/{userId}/favorites/{propertyId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // =========================================================
+    // user_bookings
+    // =========================================================
+    match /users/{userId}/user_bookings/{bookingId} {
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+      allow update, delete: if isStaff();
+    }
+
+    // =========================================================
+    // verifications
+    // =========================================================
+    match /verifications/{verifId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isStaff());
+      allow update: if isStaff();
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.userId
+        && resource.data.status == 'rejected';
+    }
+
+    // =========================================================
+    // features
+    // =========================================================
+    match /features/global {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // =========================================================
+    // property_category
+    // =========================================================
+    match /property_category/{id} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // =========================================================
+    // properties
+    // =========================================================
+    match /properties/{propId} {
+      allow read: if true;
+      allow create: if isStaff();
+      allow update, delete: if isStaff() || isResourceOwner();
+
+      match /panorama_tour/{docId} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isStaff() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      }
+
+      match /ratings/{userId} {
+        allow read: if true;
+        allow create, update: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // توافق مع المشروع الحالي
+      match /bookings/{bookingId} {
+        allow create: if isSignedIn()
+          && (
+            isStaff() ||
+            request.resource.data.customerUserId == request.auth.uid
+          );
+
+        allow read: if isSignedIn()
+          && (
+            isStaff() ||
+            request.auth.uid == resource.data.customerUserId ||
+            request.auth.uid == resource.data.ownerUserId
+          );
+
+        allow update, delete: if isStaff();
+      }
+
+      match /{anyPath=**} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
+    }
+
+    // =========================================================
+    // property_requests
+    // =========================================================
+    match /property_requests/{requestId} {
+      allow create: if isSignedIn() && (isVerifiedUser() || isStaff());
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.ownerId || isStaff());
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.ownerId || isStaff());
+      allow delete: if isStaff();
+
+      match /{anyPath=**} {
+        allow read, write: if isStaff()
+          || (isSignedIn() && request.auth.uid == get(/databases/$(database)/documents/property_requests/$(requestId)).data.ownerId);
+      }
+    }
+
+    // =========================================================
+    // requests
+    // =========================================================
+    match /requests/{reqId} {
+      allow create: if isSignedIn();
+      allow read: if isStaff()
+        || (isSignedIn()
+          && (
+            request.auth.uid == resource.data.renterId ||
+            request.auth.uid == resource.data.ownerId
+          ));
+      allow update, delete: if isStaff();
+    }
+
+    // =========================================================
+    // settings
+    // =========================================================
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAppOwner();
+    }
+
+    // =========================================================
+    // report_reasons
+    // =========================================================
+    match /report_reasons/{reasonId} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // =========================================================
+    // reports
+    // =========================================================
+    match /property_reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isStaff();
+    }
+
+    match /hotel_reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isStaff();
+    }
+
+    // =========================================================
+    // deals
+    // =========================================================
+    match /deals/{dealId} {
+      allow create: if isSignedIn()
+        && (
+          isStaff() ||
+          (
+            request.resource.data.customerUserId == request.auth.uid &&
+            isVerifiedUser()
+          )
+        );
+
+      allow read: if isSignedIn() && (isStaff() || isDealParty());
+      allow update: if isSignedIn() && (isStaff() || isDealParty());
+      allow delete: if isStaff();
+    }
+
+    // =========================================================
+    // contracts
+    // =========================================================
+    match /contracts/{contractId} {
+      allow read: if isSignedIn()
+        && (
+          isStaff() ||
+          request.auth.uid == resource.data.customerUserId ||
+          request.auth.uid == resource.data.ownerUserId
+        );
+
+      // من Cloud Functions فقط
+      allow create, update, delete: if false;
+    }
+
+    // =========================================================
+    // invoices
+    // =========================================================
+    match /invoices/{invoiceId} {
+      allow create: if isStaff();
+      allow read: if isSignedIn()
+        && (
+          isStaff() ||
+          request.auth.uid == resource.data.customerUserId ||
+          request.auth.uid == resource.data.ownerUserId
+        );
+      allow update, delete: if isStaff();
+    }
+
+    // =========================================================
+    // manual_payments
+    // =========================================================
+    match /manual_payments/{paymentId} {
+      allow create: if isSignedIn()
+        && request.resource.data.customerUserId == request.auth.uid;
+
+      allow read: if isSignedIn()
+        && (
+          isStaff() ||
+          request.auth.uid == resource.data.customerUserId ||
+          request.auth.uid == resource.data.ownerUserId
+        );
+
+      allow update, delete: if isStaff();
+    }
+
+    // =========================================================
+    // mail
+    // =========================================================
+    match /mail/{mailId} {
+      allow read, write: if isStaff();
+    }
+
+    // =========================================================
+    // hotels
+    // =========================================================
+    match /hotels/{hotelId} {
+      allow read: if true;
+      allow create, update, delete: if isStaff();
+
+      match /room_types/{roomTypeId} {
+        allow read: if true;
+        allow create, delete: if isStaff();
+
+        allow update: if isStaff()
+          || (
+            isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['available_count'])
+            && request.resource.data.available_count is int
+            && request.resource.data.available_count >= 0
+            && request.resource.data.available_count <= resource.data.total_count
+          );
+
+        match /panorama_tour/{docId} {
+          allow read: if true;
+          allow write: if isStaff();
+        }
+
+        match /bookings/{bookingId} {
+          allow read, create, update, delete: if isStaff();
+        }
+      }
+    }
+
+    // =========================================================
+    // fcm_notification_requests
+    // =========================================================
+    match /fcm_notification_requests/{requestId} {
+      allow create, read, delete: if isStaff();
+      allow update: if isStaff() || isSignedIn();
+    }
+  }
+}

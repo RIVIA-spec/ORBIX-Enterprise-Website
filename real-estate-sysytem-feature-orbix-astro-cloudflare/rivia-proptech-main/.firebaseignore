@@ -1,0 +1,7 @@
+*.pr1-current-backup.txt
+**/*.pr1-current-backup.txt
+*.log
+firestore-debug.log
+ui-debug.log
+firebase-debug.log
+functions/node_modules

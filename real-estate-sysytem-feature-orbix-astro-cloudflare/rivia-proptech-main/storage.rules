@@ -1,0 +1,144 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userData() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userExists() {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function legacyRole() {
+      return userData().get('role', '');
+    }
+
+    function platformRole() {
+      return userData().get('platformRole', '');
+    }
+
+    function isAdmin() {
+      return userExists()
+        && (
+          legacyRole() == 'admin' ||
+          platformRole() == 'admin' ||
+          legacyRole() == 'superadmin' ||
+          platformRole() == 'superadmin'
+        );
+    }
+
+    function isAppOwner() {
+      return userExists()
+        && (
+          legacyRole() == 'owner' ||
+          platformRole() == 'owner'
+        );
+    }
+
+    function isStaff() {
+      return isAdmin() || isAppOwner();
+    }
+
+    function canReadContract(contractId) {
+      return isSignedIn()
+        && userExists()
+        && firestore.exists(/databases/(default)/documents/contracts/$(contractId))
+        && (
+          isStaff() ||
+          legacyRole() == 'superadmin' ||
+          platformRole() == 'superadmin' ||
+          (
+            'partyUserIds' in firestore.get(/databases/(default)/documents/contracts/$(contractId)).data &&
+            request.auth.uid in firestore.get(/databases/(default)/documents/contracts/$(contractId)).data.partyUserIds
+          )
+        );
+    }
+
+    function isImageUpload(maxSize) {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= maxSize
+        && request.resource.contentType in [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'image/gif'
+        ];
+    }
+
+    function isVerificationUpload() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType in [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'application/pdf'
+        ];
+    }
+
+    match /id_verifications/{userId}/{allPaths=**} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaff());
+      allow create, update: if isSignedIn()
+        && (request.auth.uid == userId || isStaff())
+        && isVerificationUpload();
+      allow delete: if isStaff();
+    }
+
+    match /properties/{userId}/property_images/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+        && (request.auth.uid == userId || isStaff())
+        && isImageUpload(10 * 1024 * 1024);
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isStaff());
+    }
+
+    match /properties/{userId}/panorama_tours/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isSignedIn()
+        && (request.auth.uid == userId || isStaff())
+        && isImageUpload(25 * 1024 * 1024);
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isStaff());
+    }
+
+    match /ads/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isStaff() && isImageUpload(5 * 1024 * 1024);
+      allow delete: if isStaff();
+    }
+
+    match /hotels/{hotelId}/images/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isStaff() && isImageUpload(10 * 1024 * 1024);
+      allow delete: if isStaff();
+    }
+
+    match /hotels/{userId}/{folder}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isStaff() && isImageUpload(25 * 1024 * 1024);
+      allow delete: if isStaff();
+    }
+
+    match /home/hero-slides/{slideId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isStaff() && isImageUpload(5 * 1024 * 1024);
+      allow delete: if isStaff();
+    }
+
+    match /contracts/{contractId}/{allPaths=**} {
+      allow read: if canReadContract(contractId);
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

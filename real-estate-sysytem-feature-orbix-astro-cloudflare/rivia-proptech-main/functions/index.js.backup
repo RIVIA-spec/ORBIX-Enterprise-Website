@@ -1,0 +1,567 @@
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const {defineSecret} = require('firebase-functions/params');
+const {FieldValue} = require('firebase-admin/firestore');
+
+admin.initializeApp();
+require('./contracts').registerContractFunctions(exports);
+
+const cfWorkerSharedSecret = defineSecret('CF_WORKER_SHARED_SECRET');
+const ADMIN_EMAIL_WORKER_URL =
+   process.env.ADMIN_EMAIL_WORKER_URL ||
+   'https://orbixcity-admin-email-worker.purple-cell-72bb.workers.dev/send-admin-notification';
+
+function readAdminEmailField(data, ...keys) {
+  for (const key of keys) {
+    const directValue = data?.[key];
+    if (directValue !== undefined && directValue !== null && directValue !== '') {
+      return directValue;
+    }
+    const metadataValue = data?.metadata?.[key];
+    if (metadataValue !== undefined && metadataValue !== null && metadataValue !== '') {
+      return metadataValue;
+    }
+  }
+  return undefined;
+}
+
+function buildAdminDashboardLink(emailType) {
+  const baseUrl = String(process.env.APP_BASE_URL || '').trim().replace(/\/$/, '');
+  if (!baseUrl) return undefined;
+  return emailType === 'purchase' ? `${baseUrl}/admin/deals` : `${baseUrl}/admin/bookings`;
+}
+
+function buildAdminEmailContent(data) {
+  const emailType = readAdminEmailField(data, 'emailType') || 'general';
+
+  if (emailType === 'purchase') {
+    return {
+      subject: `طلب شراء عقار جديد: ${readAdminEmailField(data, 'propertyTitle', 'property_title') || readAdminEmailField(data, 'propertyId', 'property_id') || 'عقار'}`,
+    };
+  }
+
+  if (emailType === 'property_booking') {
+    return {
+      subject: `طلب حجز عقار جديد: ${readAdminEmailField(data, 'propertyTitle', 'property_title') || readAdminEmailField(data, 'propertyId', 'property_id') || 'عقار'}`,
+    };
+  }
+
+  return {
+    subject: 'Rivia admin notification',
+  };
+}
+
+function buildAdminWorkerPayload(data) {
+  const {subject} = buildAdminEmailContent(data || {});
+  const emailType = readAdminEmailField(data, 'emailType') || 'general';
+  const dashboardLink = readAdminEmailField(data, 'dashboardLink') || buildAdminDashboardLink(emailType);
+
+  return {
+    eventType: emailType,
+    summary: subject,
+    entityId:
+      readAdminEmailField(data, 'dealId') ||
+      readAdminEmailField(data, 'bookingId') ||
+      readAdminEmailField(data, 'propertyId', 'property_id') ||
+      readAdminEmailField(data, 'contractId') ||
+      undefined,
+    actorId: readAdminEmailField(data, 'customerUserId') || readAdminEmailField(data, 'ownerUserId') || undefined,
+    metadata: {
+      dealId: readAdminEmailField(data, 'dealId') || null,
+      bookingId: readAdminEmailField(data, 'bookingId') || null,
+      propertyId: readAdminEmailField(data, 'propertyId', 'property_id') || null,
+      propertyTitle: readAdminEmailField(data, 'propertyTitle', 'property_title') || null,
+      contractId: readAdminEmailField(data, 'contractId') || null,
+      customerUserId: readAdminEmailField(data, 'customerUserId') || null,
+      customerName: readAdminEmailField(data, 'customerName', 'customer_name') || null,
+      customerPhone: readAdminEmailField(data, 'customerPhone', 'customer_phone') || null,
+      customerEmail: readAdminEmailField(data, 'customerEmail', 'customer_email') || null,
+      customerNote: readAdminEmailField(data, 'customerNote', 'customer_note', 'note') || null,
+      ownerUserId: readAdminEmailField(data, 'ownerUserId') || null,
+      templateType: readAdminEmailField(data, 'templateType') || null,
+      checkIn: readAdminEmailField(data, 'checkIn', 'check_in') || null,
+      checkOut: readAdminEmailField(data, 'checkOut', 'check_out') || null,
+      guests: readAdminEmailField(data, 'guests') || null,
+      proposedPrice: readAdminEmailField(data, 'proposedPrice', 'proposed_price') || null,
+      preferredContactMethod: readAdminEmailField(data, 'preferredContactMethod', 'preferred_contact_method') || null,
+      listingType: readAdminEmailField(data, 'listingType', 'listing_type') || null,
+      requestType: readAdminEmailField(data, 'requestType', 'request_type') || null,
+      createdAt: readAdminEmailField(data, 'createdAt', 'created_at') || null,
+      dashboardLink: dashboardLink || null,
+      dashboardHint: dashboardLink ? null : emailType === 'purchase' ? 'افتح لوحة التحكم > الصفقات' : 'افتح لوحة التحكم > الحجوزات',
+    },
+  };
+}
+
+function requireAuth(context) {
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+  }
+  return context.auth.uid;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function assertNonEmptyString(value, fieldName) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new functions.https.HttpsError('invalid-argument', `${fieldName} is required`);
+  }
+  return value.trim();
+}
+
+async function getServerUser(uid) {
+  const snap = await admin.firestore().collection('users').doc(uid).get();
+  return snap.exists ? snap.data() || {} : {};
+}
+
+function hasTrustedPlatformRole(userData, authToken) {
+  const roles = [
+    authToken?.platformRole,
+    authToken?.role,
+    userData?.platformRole,
+    userData?.role,
+  ].filter(Boolean).map((role) => String(role).toLowerCase());
+  return roles.some((role) => ['admin', 'superadmin'].includes(role));
+}
+
+function hasStaffPlatformRole(userData, authToken) {
+  const roles = [
+    authToken?.platformRole,
+    authToken?.role,
+    userData?.platformRole,
+    userData?.role,
+  ].filter(Boolean).map((role) => String(role).toLowerCase());
+  return roles.some((role) => ['admin', 'superadmin', 'owner', 'staff'].includes(role));
+}
+
+function isDealParticipant(deal, uid) {
+  return deal?.customerUserId === uid || deal?.ownerUserId === uid;
+}
+
+function isActiveContractStatus(status) {
+  const normalized = String(status || 'pending').toLowerCase();
+  return !['cancelled', 'canceled', 'void', 'deleted', 'rejected', 'expired'].includes(normalized);
+}
+
+function sanitizeText(value, maxLength = 300) {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  if (!text) return undefined;
+  return text.replace(/[<>]/g, '').slice(0, maxLength);
+}
+
+function sanitizeNumberLike(value) {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const text = String(value).trim().slice(0, 60);
+  return text || undefined;
+}
+
+function normalizeAdminEmailRequest(data) {
+  if (!isPlainObject(data)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid request');
+  }
+
+  rejectUnsafeAdminEmailFields(data);
+
+  const emailType = assertNonEmptyString(data.emailType, 'emailType');
+  const allowed = ['purchase', 'property_booking', 'property_submission', 'verification_submission', 'contract_request'];
+  if (!allowed.includes(emailType)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Unsupported email type');
+  }
+
+  const metadata = isPlainObject(data.metadata) ? data.metadata : {};
+  const read = (...keys) => {
+    for (const key of keys) {
+      const direct = data[key];
+      if (direct !== undefined && direct !== null && direct !== '') return direct;
+      const nested = metadata[key];
+      if (nested !== undefined && nested !== null && nested !== '') return nested;
+    }
+    return undefined;
+  };
+
+  return {
+    emailType,
+    dealId: read('dealId') || (['purchase', 'contract_request'].includes(emailType) ? read('relatedId') : undefined),
+    bookingId: read('bookingId') || (emailType === 'property_booking' ? read('relatedId') : undefined),
+    propertyId: read('propertyId', 'property_id') || (emailType === 'property_submission' ? read('relatedId') : undefined),
+    contractId: read('contractId'),
+    userId: read('userId'),
+    checkIn: read('checkIn', 'check_in'),
+    checkOut: read('checkOut', 'check_out'),
+    guests: read('guests'),
+    customerName: read('customerName', 'customer_name'),
+    customerPhone: read('customerPhone', 'customer_phone'),
+    customerEmail: read('customerEmail', 'customer_email'),
+    customerNote: read('customerNote', 'customer_note', 'note'),
+    ownerUserId: read('ownerUserId'),
+    preferredContactMethod: read('preferredContactMethod', 'preferred_contact_method'),
+    proposedPrice: read('proposedPrice', 'proposed_price'),
+    listingType: read('listingType', 'listing_type'),
+    requestType: read('requestType', 'request_type'),
+    templateType: read('templateType'),
+  };
+}
+
+function rejectUnsafeAdminEmailFields(data) {
+  const forbiddenKeys = [
+    'recipient',
+    'recipients',
+    'to',
+    'cc',
+    'bcc',
+    'html',
+    'bodyHtml',
+    'dashboardLink',
+    'link',
+    'url',
+    'redirectUrl',
+    'senderRole',
+    'createdByRole',
+    'sender_role',
+    'created_by_role',
+  ];
+  const containsForbiddenKey = (value) => {
+    if (!isPlainObject(value)) return false;
+    return Object.keys(value).some((key) => forbiddenKeys.includes(key)) ||
+      Object.values(value).some((item) => isPlainObject(item) && containsForbiddenKey(item));
+  };
+  if (containsForbiddenKey(data)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid request');
+  }
+}
+
+async function resolveUserBookingEntity(db, bookingId, uid, isStaffUser) {
+  const ownBookingSnap = await db.collection('users').doc(uid).collection('user_bookings').doc(bookingId).get();
+  if (ownBookingSnap.exists) {
+    const booking = ownBookingSnap.data() || {};
+    if (!isStaffUser && booking.customerUserId !== uid && booking.ownerUserId !== uid) {
+      throw new functions.https.HttpsError('permission-denied', 'Permission denied');
+    }
+    return {kind: 'booking', id: bookingId, data: booking};
+  }
+
+  if (isStaffUser) {
+    const byField = await db.collectionGroup('user_bookings').where('bookingId', '==', bookingId).limit(1).get();
+    const bookingDoc = byField.docs[0];
+    if (bookingDoc) {
+      return {kind: 'booking', id: bookingId, data: bookingDoc.data() || {}};
+    }
+  }
+
+  throw new functions.https.HttpsError('not-found', 'Related entity not found');
+}
+
+async function resolveAdminEmailEntity(db, request, uid, isStaffUser) {
+  const failMissing = () => {
+    throw new functions.https.HttpsError('not-found', 'Related entity not found');
+  };
+  const failDenied = () => {
+    throw new functions.https.HttpsError('permission-denied', 'Permission denied');
+  };
+
+  if (request.emailType === 'purchase' || request.emailType === 'contract_request') {
+    if (request.dealId) {
+      const dealId = assertNonEmptyString(request.dealId, 'dealId');
+      const dealSnap = await db.collection('deals').doc(dealId).get();
+      if (!dealSnap.exists) failMissing();
+      const deal = dealSnap.data() || {};
+      if (!isStaffUser && !isDealParticipant(deal, uid)) failDenied();
+      return {kind: 'deal', id: dealId, data: deal};
+    }
+    if (request.emailType === 'purchase' && request.bookingId) {
+      return resolveUserBookingEntity(db, assertNonEmptyString(request.bookingId, 'bookingId'), uid, isStaffUser);
+    }
+    throw new functions.https.HttpsError('invalid-argument', 'dealId is required');
+  }
+
+  if (request.emailType === 'property_booking') {
+    const bookingId = assertNonEmptyString(request.bookingId, 'bookingId');
+    try {
+      return await resolveUserBookingEntity(db, bookingId, uid, isStaffUser);
+    } catch (error) {
+      if (!(error instanceof functions.https.HttpsError) || error.code !== 'not-found') {
+        throw error;
+      }
+    }
+    if (request.dealId) {
+      const dealSnap = await db.collection('deals').doc(String(request.dealId)).get();
+      if (dealSnap.exists) {
+        const deal = dealSnap.data() || {};
+        if (!isStaffUser && !isDealParticipant(deal, uid)) failDenied();
+        return {kind: 'deal_booking', id: bookingId, data: deal};
+      }
+    }
+    failMissing();
+  }
+
+  if (request.emailType === 'property_submission') {
+    const propertyId = assertNonEmptyString(request.propertyId, 'propertyId');
+    const requestSnap = await db.collection('property_requests').doc(propertyId).get();
+    const propertySnap = requestSnap.exists ? requestSnap : await db.collection('properties').doc(propertyId).get();
+    if (!propertySnap.exists) failMissing();
+    const property = propertySnap.data() || {};
+    const ownerIds = [property.ownerId, property.ownerUserId, property.userId, property.createdBy, property.postedBy, property.ownerUid, property.created_by];
+    if (!isStaffUser && !ownerIds.includes(uid)) failDenied();
+    return {kind: requestSnap.exists ? 'property_request' : 'property', id: propertyId, data: property};
+  }
+
+  if (request.emailType === 'verification_submission') {
+    const userId = assertNonEmptyString(request.userId || uid, 'userId');
+    if (!isStaffUser && userId !== uid) failDenied();
+    const verificationSnap = await db.collection('verifications').doc(userId).get();
+    if (!verificationSnap.exists) failMissing();
+    return {kind: 'verification', id: userId, data: verificationSnap.data() || {}};
+  }
+
+  throw new functions.https.HttpsError('invalid-argument', 'Unsupported email type');
+}
+
+function buildSafeAdminEmailPayload(request, entity, uid) {
+  const source = entity.data || {};
+  const emailType = request.emailType;
+  const propertyTitle = sanitizeText(source.propertyTitle || source.property_title || source.title || request.propertyTitle, 180);
+  const propertyId = sanitizeText(source.propertyId || source.property_id || request.propertyId, 120);
+
+  return buildAdminWorkerPayload({
+    emailType,
+    dealId: sanitizeText(source.dealId || request.dealId, 120),
+    bookingId: sanitizeText(source.bookingId || request.bookingId, 120),
+    propertyId,
+    propertyTitle,
+    contractId: sanitizeText(source.contractId || request.contractId, 120),
+    customerUserId: sanitizeText(source.customerUserId || uid, 120),
+    customerName: sanitizeText(source.customerName || source.customer_name || request.customerName, 160),
+    customerPhone: sanitizeText(source.customerPhone || source.customer_phone || request.customerPhone, 80),
+    customerEmail: sanitizeText(source.customerEmail || source.customer_email || request.customerEmail, 160),
+    customerNote: sanitizeText(source.customerNote || source.customer_note || request.customerNote, 500),
+    ownerUserId: sanitizeText(source.ownerUserId || request.ownerUserId, 120),
+    templateType: sanitizeText(source.templateType || request.templateType, 80),
+    checkIn: sanitizeText(source.checkIn || source.check_in || request.checkIn, 80),
+    checkOut: sanitizeText(source.checkOut || source.check_out || request.checkOut, 80),
+    guests: sanitizeNumberLike(source.guests || request.guests),
+    proposedPrice: sanitizeNumberLike(source.proposedPrice || source.proposed_price || source.totalAmount || source.total_amount || request.proposedPrice),
+    preferredContactMethod: sanitizeText(source.preferredContactMethod || source.preferred_contact_method || request.preferredContactMethod, 80),
+    listingType: sanitizeText(source.listingType || source.listing_type || request.listingType, 80),
+    requestType: sanitizeText(source.requestType || source.request_type || request.requestType, 80),
+    createdAt: source.createdAt || source.created_at || new Date().toISOString(),
+    dashboardLink: buildAdminDashboardLink(emailType),
+  });
+}
+
+// Cloud Function لإرسال إشعارات FCM
+exports.sendFCMNotification = functions.firestore
+  .document('fcm_notification_requests/{requestId}')
+  .onCreate(async (snap, context) => {
+    const data = snap.data();
+    
+    console.log('FCM Notification Request received:', {
+      requestId: context.params.requestId,
+      status: data.status,
+      tokensCount: data.tokens ? data.tokens.length : 0,
+      title: data.title,
+      body: data.body
+    });
+    
+    // التحقق من أن الحالة pending
+    if (data.status !== 'pending') {
+      console.log('Request status is not pending, skipping...');
+      return null;
+    }
+
+    const { tokens, title, body, type } = data;
+    
+    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
+      console.error('No tokens provided');
+      await snap.ref.update({ 
+        status: 'failed', 
+        error: 'No tokens provided',
+        failed_at: FieldValue.serverTimestamp()
+      });
+      return null;
+    }
+
+    try {
+      // إرسال إشعار FCM
+      const message = {
+        notification: {
+          title: title || 'إشعار جديد',
+          body: body || 'لديك إشعار جديد',
+        },
+        data: {
+          type: type || 'custom',
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'high_importance_channel',
+            sound: 'default',
+            priority: 'high',
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1,
+            },
+          },
+        },
+        tokens: tokens, // إرسال لعدة أجهزة
+      };
+
+      console.log(`Sending FCM notifications to ${tokens.length} devices...`);
+      const response = await admin.messaging().sendEachForMulticast(message);
+      
+      console.log(`Successfully sent ${response.successCount} messages`);
+      console.log(`Failed to send ${response.failureCount} messages`);
+      
+      // طباعة تفاصيل الأخطاء إن وجدت
+      if (response.failureCount > 0) {
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            console.error(`Failed to send to token ${idx}:`, resp.error);
+          }
+        });
+      }
+
+      // تحديث حالة الطلب
+      await snap.ref.update({
+        status: 'completed',
+        success_count: response.successCount,
+        failure_count: response.failureCount,
+        completed_at: FieldValue.serverTimestamp(),
+      });
+
+      console.log('FCM notification request completed successfully');
+
+      // حذف الطلب بعد 24 ساعة (اختياري)
+      setTimeout(async () => {
+        try {
+          await snap.ref.delete();
+          console.log('FCM notification request deleted after 24 hours');
+        } catch (e) {
+          console.error('Error deleting request:', e);
+        }
+      }, 24 * 60 * 60 * 1000); // 24 ساعة
+
+      return null;
+    } catch (error) {
+      console.error('Error sending FCM notification:', error);
+      console.error('Error stack:', error.stack);
+      await snap.ref.update({
+        status: 'failed',
+        error: error.message || 'Unknown error',
+        error_stack: error.stack,
+        failed_at: FieldValue.serverTimestamp(),
+      });
+      return null;
+    }
+  });
+
+exports.createContractForDeal = functions.https.onCall(async (data, context) => {
+  requireAuth(context);
+  throw new functions.https.HttpsError(
+    'failed-precondition',
+    'Use createDirectPartyContract for direct party contracts'
+  );
+});
+exports.queueAdminEmail = functions
+  .runWith({secrets: [cfWorkerSharedSecret]})
+  .https.onCall(async (data, context) => {
+    const uid = requireAuth(context);
+    const db = admin.firestore();
+    const userData = await getServerUser(uid);
+    const isStaffUser = hasStaffPlatformRole(userData, context.auth.token);
+    const request = normalizeAdminEmailRequest(data || {});
+    const entity = await resolveAdminEmailEntity(db, request, uid, isStaffUser);
+    const workerPayload = buildSafeAdminEmailPayload(request, entity, uid);
+    const rateLimitId = `${uid}_${workerPayload.eventType}_${workerPayload.entityId || entity.id}`
+      .replace(/[^A-Za-z0-9_-]/g, '_')
+      .slice(0, 240);
+    const rateLimitRef = db.collection('admin_email_rate_limits').doc(rateLimitId);
+
+    functions.logger.info('Admin email worker call start', {
+      emailType: workerPayload.eventType,
+      summary: workerPayload.summary,
+      entityId: workerPayload.entityId || null,
+    });
+
+    try {
+      await db.runTransaction(async (transaction) => {
+        const snap = await transaction.get(rateLimitRef);
+        const now = Date.now();
+        const lastMs = snap.exists && snap.data()?.updatedAt?.toMillis ? snap.data().updatedAt.toMillis() : 0;
+        if (lastMs && now - lastMs < 60 * 1000) {
+          throw new functions.https.HttpsError('already-exists', 'Notification already queued');
+        }
+        transaction.set(rateLimitRef, {
+          uid,
+          emailType: workerPayload.eventType,
+          entityId: workerPayload.entityId || entity.id,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      });
+
+      const response = await fetch(ADMIN_EMAIL_WORKER_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${cfWorkerSharedSecret.value()}`,
+        },
+        body: JSON.stringify(workerPayload),
+      });
+      const responseText = await response.text();
+      let responseBody;
+
+      try {
+        responseBody = responseText ? JSON.parse(responseText) : null;
+      } catch (_) {
+        responseBody = {raw: responseText};
+      }
+
+      if (!response.ok) {
+        functions.logger.error('Admin email worker call failure', {
+          emailType: workerPayload.eventType,
+          status: response.status,
+          response: responseBody,
+        });
+
+        throw new functions.https.HttpsError(
+          'internal',
+          'Admin notification failed'
+        );
+      }
+
+      functions.logger.info('Admin email worker call success', {
+        emailType: workerPayload.eventType,
+        status: response.status,
+      });
+
+      return {
+        ok: true,
+        sent: true,
+        queued: response.status === 202,
+        status: response.status,
+        workerResponse: responseBody,
+      };
+    } catch (error) {
+      functions.logger.error('Admin email worker call failure', {
+        emailType: workerPayload.eventType,
+        error: error.message,
+      });
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        'internal',
+        'Admin notification failed'
+      );
+    }
+  });

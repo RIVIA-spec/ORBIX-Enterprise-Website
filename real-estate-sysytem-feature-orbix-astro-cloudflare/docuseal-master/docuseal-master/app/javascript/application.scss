@@ -1,0 +1,217 @@
+@config "../../tailwind.application.config.js";
+
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+:root {
+  --orbix-primary: #0f7cff;
+  --orbix-primary-hover: #075fcc;
+  --orbix-secondary: #111827;
+  --orbix-background: #f6f8fb;
+  --orbix-surface: #ffffff;
+  --orbix-text: #0b1220;
+  --orbix-muted: #5b6676;
+  --orbix-border: #d8e0ea;
+  --orbix-success: #0f9f6e;
+  --orbix-warning: #b7791f;
+  --orbix-danger: #c2413b;
+}
+
+html[lang='ar'],
+html[lang^='ar-'] {
+  direction: rtl;
+}
+
+body {
+  background: var(--orbix-background);
+  color: var(--orbix-text);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--orbix-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+a[href],
+input[type='checkbox'],
+input[type='submit'],
+input[type='image'],
+input[type='radio'],
+label[for],
+select,
+button {
+  cursor: pointer;
+}
+
+button .disabled {
+  display: none;
+}
+
+button[disabled] .disabled, button.btn-disabled .disabled {
+  display: initial;
+}
+
+button .enabled {
+  display: initial;
+}
+
+button[disabled] .enabled, button.btn-disabled .enabled {
+  display: none;
+}
+
+.input-bordered {
+  @apply border-base-content/20;
+}
+
+.select-bordered {
+  @apply border-base-content/20;
+}
+
+.textarea-bordered {
+  @apply border-base-content/20;
+}
+
+.btn {
+  @apply no-animation;
+}
+
+.base-input {
+  @apply input input-bordered bg-white;
+  border-color: var(--orbix-border);
+}
+
+.base-textarea {
+  @apply textarea textarea-bordered bg-white rounded-3xl;
+  border-color: var(--orbix-border);
+}
+
+.base-button {
+  @apply btn text-white text-base;
+  background: var(--orbix-primary);
+  border-color: var(--orbix-primary);
+}
+
+.base-button:hover {
+  background: var(--orbix-primary-hover);
+  border-color: var(--orbix-primary-hover);
+}
+
+.base-button:disabled,
+.base-button.btn-disabled {
+  background: var(--orbix-muted);
+  border-color: var(--orbix-muted);
+}
+
+.white-button {
+  @apply btn btn-outline text-base bg-white border-2;
+  border-color: var(--orbix-border);
+  color: var(--orbix-text);
+}
+
+.white-button:hover {
+  border-color: var(--orbix-primary);
+  color: var(--orbix-primary);
+  background: color-mix(in srgb, var(--orbix-primary) 7%, white);
+}
+
+.base-checkbox {
+  @apply checkbox rounded bg-white checkbox-sm no-animation;
+}
+
+.base-radio {
+  @apply radio bg-white radio-sm no-animation;
+}
+
+.base-select {
+  @apply select base-input w-full font-normal;
+}
+
+.tooltip-bottom-end:before {
+  transform: translateX(-95%);
+  top: var(--tooltip-offset);
+  left: 100%;
+  right: auto;
+  bottom: auto;
+}
+
+.tooltip-pre:before {
+  white-space: pre;
+  text-align: left;
+}
+
+.tooltip-bottom-end:after {
+  transform: translateX(-25%);
+  border-color: transparent transparent var(--tooltip-color) transparent;
+  top: var(--tooltip-tail-offset);
+  left: 50%;
+  right: auto;
+  bottom: auto;
+}
+
+.tooltip-bottom-start:before {
+  transform: translateX(-31%);
+  top: var(--tooltip-offset);
+  left: 100%;
+  right: auto;
+  bottom: auto;
+}
+
+.tooltip-bottom-start:after {
+  transform: translateX(-25%);
+  border-color: transparent transparent var(--tooltip-color) transparent;
+  top: var(--tooltip-tail-offset);
+  left: 50%;
+  right: auto;
+  bottom: auto;
+}
+
+.autocomplete {
+  background: white;
+  z-index: 1000;
+  font: 16px/25px "-apple-system", BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: auto;
+  box-sizing: border-box;
+  @apply border border-base-300 mt-1 rounded-md;
+}
+
+.autocomplete * {
+  font: inherit;
+}
+
+.autocomplete > div {
+  @apply px-2 py-1.5 font-normal;
+}
+
+.autocomplete .group {
+  background: var(--orbix-background);
+}
+
+.autocomplete > div:hover:not(.group),
+.autocomplete > div.selected {
+  @apply bg-base-300;
+  cursor: pointer;
+}
+
+.input-outlined {
+  outline-style: solid;
+  outline-width: 1px;
+  outline-offset: 3px;
+  outline-color: hsl(var(--bc) / 0.2);
+}
+
+.font-times {
+  font-family: "Times New Roman", Times, ui-serif, serif, Cambria, Georgia;
+}
+
+.font-courier {
+  font-family: "Courier New", Consolas, "Liberation Mono", monospace, ui-monospace, SFMono-Regular, Menlo, Monaco;
+}
+
+markdown-editor [contenteditable] p {
+  margin-bottom: 18px;
+}

@@ -1,0 +1,90 @@
+﻿{
+  "collectionName": "components_brand_asset_sets",
+  "info": {
+    "displayName": "Brand Asset Set",
+    "description": "Orbix visual identity source files and rendered assets"
+  },
+  "options": {},
+  "attributes": {
+    "primaryHorizontalLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "verticalLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "symbolMark": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "lightLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "darkLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "favicon": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "defaultSocialImage": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "cityLandmarkPattern": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "cityLandmarkPatternOnBlue": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "circlePattern": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "lightPatternVariant": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "darkPatternVariant": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "orbixIconLibrary": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["images", "files"]
+    },
+    "brandIllustrations": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["images"]
+    },
+    "visualIdentityPdf": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["files"]
+    },
+    "mediaKitFiles": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["files", "images"]
+    }
+  }
+}

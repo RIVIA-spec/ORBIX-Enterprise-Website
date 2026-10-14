@@ -1,0 +1,105 @@
+{
+  "kind": "collectionType",
+  "collectionName": "submissions",
+  "info": {
+    "singularName": "submission",
+    "pluralName": "submissions",
+    "displayName": "Submission"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "fullName": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "email",
+      "required": true,
+      "maxLength": 160
+    },
+    "role": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "student",
+        "creator",
+        "founder",
+        "engineer",
+        "company",
+        "other"
+      ]
+    },
+    "submissionType": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "article",
+        "idea",
+        "project",
+        "research",
+        "case_study",
+        "company_profile",
+        "other"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "maxLength": 180
+    },
+    "summary": {
+      "type": "text",
+      "required": true,
+      "maxLength": 4000
+    },
+    "links": {
+      "type": "json"
+    },
+    "supportingLinks": {
+      "type": "text"
+    },
+    "socialProfile": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "profileLink": {
+      "type": "string"
+    },
+    "consent": {
+      "type": "boolean",
+      "default": false
+    },
+    "rightsConfirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "enumeration",
+      "required": true,
+      "default": "new",
+      "enum": [
+        "new",
+        "reviewing",
+        "accepted",
+        "rejected",
+        "published",
+        "spam"
+      ]
+    },
+    "internalNotes": {
+      "type": "text",
+      "private": true
+    },
+    "notes": {
+      "type": "text",
+      "private": true
+    }
+  }
+}

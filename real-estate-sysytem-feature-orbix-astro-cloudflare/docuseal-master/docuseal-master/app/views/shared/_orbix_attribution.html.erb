@@ -1,0 +1,26 @@
+<% source_code_url = Docuseal.source_code_url %>
+<div class="<%= local_assigns[:class].presence || 'text-center px-2 text-sm text-base-content/70' %>" dir="auto">
+  <div class="font-medium text-base-content">
+    Orbix Contracts <span class="text-base-content/50">Operated by RIVIA LLC</span>
+  </div>
+  <% if I18n.locale.to_s.start_with?('ar') %>
+    <div>
+      Orbix Contracts منتج تشغله RIVIA LLC ومبني على
+      <a href="<%= Docuseal::PRODUCT_URL %>" class="underline" rel="noopener noreferrer nofollow" target="_blank">برمجية DocuSeal مفتوحة المصدر</a>
+      والمرخصة بموجب
+      <a href="<%= Docuseal::AGPL_LICENSE_URL %>" class="underline" rel="license noopener noreferrer nofollow" target="_blank">GNU AGPL v3</a>.
+    </div>
+  <% else %>
+    <div>
+      Orbix Contracts is operated by RIVIA LLC and powered by
+      <a href="<%= Docuseal::PRODUCT_URL %>" class="underline" rel="noopener noreferrer nofollow" target="_blank">DocuSeal open-source software</a>,
+      licensed under
+      <a href="<%= Docuseal::AGPL_LICENSE_URL %>" class="underline" rel="license noopener noreferrer nofollow" target="_blank">GNU AGPL v3</a>.
+    </div>
+  <% end %>
+  <% if source_code_url %>
+    <div>
+      <a href="<%= source_code_url %>" class="underline" rel="noopener noreferrer nofollow" target="_blank"><%= I18n.locale.to_s.start_with?('ar') ? 'الكود المصدري الموافق لهذه النسخة' : 'Corresponding source code for this deployed version' %></a>
+    </div>
+  <% end %>
+</div>

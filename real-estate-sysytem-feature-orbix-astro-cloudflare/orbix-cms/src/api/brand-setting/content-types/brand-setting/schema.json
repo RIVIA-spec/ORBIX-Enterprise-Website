@@ -1,0 +1,132 @@
+﻿{
+    "kind":  "singleType",
+    "collectionName":  "brand_settings",
+    "info":  {
+                 "singularName":  "brand-setting",
+                 "pluralName":  "brand-settings",
+                 "displayName":  "Brand Settings",
+                 "description":  "Orbix visual identity, navigation, SEO, and GEO defaults"
+             },
+    "options":  {
+                    "draftAndPublish":  false
+                },
+    "pluginOptions":  {
+                          "i18n":  {
+                                       "localized":  true
+                                   }
+                      },
+    "attributes":  {
+                       "brandName":  {
+                                         "type":  "string",
+                                         "default":  "Orbix",
+                                         "required":  true,
+                                         "pluginOptions":  {
+                                                               "i18n":  {
+                                                                            "localized":  true
+                                                                        }
+                                                           }
+                                     },
+                       "tagline":  {
+                                       "type":  "string",
+                                       "default":  "Reality Reimagined",
+                                       "pluginOptions":  {
+                                                             "i18n":  {
+                                                                          "localized":  true
+                                                                      }
+                                                         }
+                                   },
+                       "operatedBy":  {
+                                          "type":  "string",
+                                          "default":  "RIVIA"
+                                      },
+                       "entityDefinition":  {
+                                                "type":  "text",
+                                                "pluginOptions":  {
+                                                                      "i18n":  {
+                                                                                   "localized":  true
+                                                                               }
+                                                                  }
+                                            },
+                       "riviaRelationship":  {
+                                                 "type":  "text",
+                                                 "default":  "Orbix is a product and brand operated by RIVIA."
+                                             },
+                       "assets":  {
+                                      "type":  "component",
+                                      "component":  "brand.asset-set",
+                                      "repeatable":  false
+                                  },
+                       "colors":  {
+                                      "type":  "component",
+                                      "component":  "brand.colors",
+                                      "repeatable":  false,
+                                      "required":  true
+                                  },
+                       "typography":  {
+                                          "type":  "component",
+                                          "component":  "brand.typography",
+                                          "repeatable":  false,
+                                          "required":  true
+                                      },
+                       "designOptions":  {
+                                             "type":  "component",
+                                             "component":  "brand.design-options",
+                                             "repeatable":  false
+                                         },
+                       "headerNavigation":  {
+                                                "type":  "component",
+                                                "component":  "shared.navigation-group",
+                                                "repeatable":  true
+                                            },
+                       "footerNavigation":  {
+                                                "type":  "component",
+                                                "component":  "shared.navigation-group",
+                                                "repeatable":  true
+                                            },
+                       "technicalLinks":  {
+                                              "type":  "component",
+                                              "component":  "shared.link",
+                                              "repeatable":  true
+                                          },
+                       "socialProfiles":  {
+                                              "type":  "component",
+                                              "component":  "shared.link",
+                                              "repeatable":  true
+                                          },
+                       "appStoreUrl":  {
+                                           "type":  "string"
+                                       },
+                       "googlePlayUrl":  {
+                                             "type":  "string"
+                                         },
+                       "defaultSeo":  {
+                                          "type":  "component",
+                                          "component":  "shared.seo",
+                                          "repeatable":  false
+                                      },
+                       "geoEntities":  {
+                                           "type":  "component",
+                                           "component":  "shared.geo-entity",
+                                           "repeatable":  true
+                                       },
+                       "llmsDescription":  {
+                                               "type":  "text"
+                                           },
+                       "editorialPolicy":  {
+                                               "type":  "text"
+                                           },
+                       "citationPolicy":  {
+                                              "type":  "text"
+                                          },
+                       "headerSettings":  {
+                                              "type":  "component",
+                                              "component":  "brand.header-settings",
+                                              "repeatable":  false
+                                          },
+                       "footerSettings":  {
+                                              "type":  "component",
+                                              "component":  "brand.footer-settings",
+                                              "repeatable":  false
+                                          }
+                   }
+}

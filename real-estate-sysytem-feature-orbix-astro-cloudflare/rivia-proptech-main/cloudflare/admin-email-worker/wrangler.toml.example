@@ -1,0 +1,11 @@
+name = "orbixcity-admin-email-worker"
+main = "src/index.js"
+compatibility_date = "2026-04-09"
+
+[vars]
+ADMIN_NOTIFICATION_RECIPIENT = "verified-destination@example.com"
+
+[[send_email]]
+name = "ADMIN_NOTIFICATION_EMAIL"
+destination_address = "verified-destination@example.com"
+allowed_sender_addresses = ["info@orbixcity.com"]

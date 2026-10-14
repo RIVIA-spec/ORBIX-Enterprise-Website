@@ -1,0 +1,279 @@
+﻿{
+  "collectionName": "components_sections_generic_sections",
+  "info": {
+    "displayName": "Section",
+    "description": "Controlled page section for Astro rendering"
+  },
+  "options": {},
+  "attributes": {
+    "sectionType": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "hero",
+        "banner",
+        "carousel",
+        "text-media",
+        "services-grid",
+        "creative-studio",
+        "virtual-tours",
+        "interactive-technology",
+        "industries",
+        "real-estate",
+        "hospitality",
+        "partners",
+        "clients",
+        "city-guides",
+        "guides",
+        "case-studies",
+        "articles-news",
+        "media-coverage",
+        "downloads",
+        "app-store-links",
+        "contact-cta",
+        "pattern-divider",
+        "faq",
+        "capability-strip",
+        "process",
+        "about",
+        "legal",
+        "article-body",
+        "case-study-body",
+        "tour-viewer"
+      ]
+    },
+    "isVisible": {
+      "type": "boolean",
+      "default": true
+    },
+    "isRequired": {
+      "type": "boolean",
+      "default": false
+    },
+    "eyebrow": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "text"
+    },
+    "body": {
+      "type": "richtext"
+    },
+    "media": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["images", "videos", "files"]
+    },
+    "items": {
+      "type": "json"
+    },
+    "colors": {
+      "type": "json"
+    },
+    "separator": {
+      "type": "enumeration",
+      "enum": ["none", "line", "dot"],
+      "default": "line"
+    },
+    "speed": {
+      "type": "enumeration",
+      "enum": ["slow", "medium", "fast"],
+      "default": "medium"
+    },
+    "direction": {
+      "type": "enumeration",
+      "enum": ["auto", "ltr", "rtl"],
+      "default": "ltr"
+    },
+    "pauseOnHover": {
+      "type": "boolean",
+      "default": true
+    },
+    "mobileBehavior": {
+      "type": "enumeration",
+      "enum": ["scroll", "marquee", "wrap", "static", "stack"],
+      "default": "scroll"
+    },
+    "ariaLabel": {
+      "type": "string"
+    },
+    "backgroundColorToken": {
+      "type": "enumeration",
+      "enum": [
+        "primaryBlue",
+        "secondaryLightBlue",
+        "white",
+        "navy",
+        "mainDarkBackground",
+        "elevatedSurface",
+        "primaryText",
+        "mutedText",
+        "borderColor",
+        "accentColor",
+        "interactionColor"
+      ]
+    },
+    "textColorToken": {
+      "type": "enumeration",
+      "enum": [
+        "primaryBlue",
+        "secondaryLightBlue",
+        "white",
+        "navy",
+        "mainDarkBackground",
+        "elevatedSurface",
+        "primaryText",
+        "mutedText",
+        "borderColor",
+        "accentColor",
+        "interactionColor"
+      ]
+    },
+    "watermark": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "showWatermark": {
+      "type": "boolean",
+      "default": false
+    },
+    "watermarkLogo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "watermarkPosition": {
+      "type": "enumeration",
+      "enum": ["top-start", "top-end", "bottom-start", "bottom-end", "center"],
+      "default": "bottom-end"
+    },
+    "watermarkOpacity": {
+      "type": "decimal",
+      "min": 0,
+      "max": 1,
+      "default": 0.15
+    },
+    "primaryCta": {
+      "type": "component",
+      "component": "shared.link",
+      "repeatable": false
+    },
+    "secondaryCta": {
+      "type": "component",
+      "component": "shared.link",
+      "repeatable": false
+    },
+    "themeVariant": {
+      "type": "enumeration",
+      "enum": ["light", "dark", "blue", "white"],
+      "default": "light"
+    },
+    "appleUrl": {
+      "type": "string"
+    },
+    "googlePlayUrl": {
+      "type": "string"
+    },
+    "appleBadge": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "googlePlayBadge": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "showApple": {
+      "type": "boolean",
+      "default": true
+    },
+    "showGooglePlay": {
+      "type": "boolean",
+      "default": true
+    },
+    "patternSelection": {
+      "type": "enumeration",
+      "enum": ["none", "city-landmark", "circle", "light", "dark"],
+      "default": "none"
+    },
+    "iconSelection": {
+      "type": "string"
+    },
+    "sortLabel": {
+      "type": "string"
+    },
+    "anchorId": {
+      "type": "string"
+    },
+    "contentItems": {
+      "type": "component",
+      "component": "sections.section-item",
+      "repeatable": true
+    },
+    "alignment": {
+      "type": "enumeration",
+      "enum": ["start", "center", "end"],
+      "default": "start"
+    },
+    "containerWidth": {
+      "type": "enumeration",
+      "enum": ["narrow", "standard", "wide", "full"],
+      "default": "standard"
+    },
+    "spacingTop": {
+      "type": "enumeration",
+      "enum": ["none", "small", "medium", "large"],
+      "default": "medium"
+    },
+    "spacingBottom": {
+      "type": "enumeration",
+      "enum": ["none", "small", "medium", "large"],
+      "default": "medium"
+    },
+    "customPattern": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "patternPosition": {
+      "type": "enumeration",
+      "enum": ["top", "center", "bottom", "full"],
+      "default": "full"
+    },
+    "patternOpacity": {
+      "type": "enumeration",
+      "enum": ["none", "subtle", "medium", "strong"],
+      "default": "subtle"
+    },
+    "animationPreset": {
+      "type": "enumeration",
+      "enum": ["none", "fade", "slide", "scale", "static", "marquee"],
+      "default": "fade"
+    },
+    "staggerItems": {
+      "type": "boolean",
+      "default": true
+    },
+    "cardStyle": {
+      "type": "enumeration",
+      "enum": ["flat", "outlined", "elevated", "glass"],
+      "default": "outlined"
+    },
+    "columnsDesktop": {
+      "type": "enumeration",
+      "enum": ["two", "three", "four"],
+      "default": "three"
+    },
+    "columnsMobile": {
+      "type": "enumeration",
+      "enum": ["one", "two"],
+      "default": "one"
+    }
+  }
+}

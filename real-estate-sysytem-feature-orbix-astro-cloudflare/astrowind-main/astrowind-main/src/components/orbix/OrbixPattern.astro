@@ -1,0 +1,98 @@
+﻿---
+export interface Props {
+  variant?: 'city-landmark' | 'circle' | 'light' | 'dark' | 'none' | string;
+  opacity?: 'subtle' | 'medium' | 'strong' | 'none';
+  position?: 'top' | 'center' | 'bottom' | 'full';
+  src?: string;
+  class?: string;
+}
+
+const { variant = 'city-landmark', opacity = 'subtle', position = 'full', src, class: className = '' } = Astro.props;
+
+const opacityClass = {
+  none: 'opacity-0',
+  subtle: 'opacity-[0.12]',
+  medium: 'opacity-[0.24]',
+  strong: 'opacity-[0.42]',
+}[opacity];
+
+const positionValue = {
+  top: 'center top',
+  center: 'center center',
+  bottom: 'center bottom',
+  full: 'center center',
+}[position];
+
+const isCircle = variant === 'circle';
+
+const defaultPatternSource =
+  variant === 'light' || variant === 'dark'
+    ? '/orbix/brand/patterns/city-landmarks-white-on-blue.png'
+    : variant === 'circle'
+      ? '/orbix/brand/logo/orbix-primary-lockup.png'
+      : '/orbix/brand/patterns/city-landmarks-blue.png';
+
+const cmsPatternSource = src && src !== defaultPatternSource ? src : undefined;
+---
+
+{
+  variant !== 'none' && (
+    <orbix-safe-pattern
+      class:list={[
+        'orbix-brand-pattern pointer-events-none absolute inset-0 overflow-hidden',
+        opacityClass,
+        isCircle ? 'orbix-brand-pattern--circle' : 'orbix-brand-pattern--city',
+        className,
+      ]}
+      style={`--orbix-pattern-image: url("${defaultPatternSource}"); background-position: ${positionValue};`}
+      aria-hidden="true"
+    >
+      {cmsPatternSource && (
+        <img
+          class="orbix-brand-pattern__cms"
+          src={cmsPatternSource}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          data-orbix-cms-pattern
+        />
+      )}
+    </orbix-safe-pattern>
+  )
+}
+
+<style>
+  .orbix-brand-pattern__cms {
+    display: none;
+  }
+</style>
+
+<script>
+  class OrbixSafePattern extends HTMLElement {
+    connectedCallback() {
+      const image = this.querySelector<HTMLImageElement>('[data-orbix-cms-pattern]');
+      if (!image) return;
+
+      const showCmsPattern = () => {
+        if (image.naturalWidth > 0) {
+          this.style.setProperty('--orbix-pattern-image', `url("${image.currentSrc || image.src}")`);
+        }
+      };
+      const hideCmsPattern = () => {
+        image.hidden = true;
+      };
+
+      image.addEventListener('load', showCmsPattern, { once: true });
+      image.addEventListener('error', hideCmsPattern, { once: true });
+
+      if (image.complete) {
+        if (image.naturalWidth > 0) showCmsPattern();
+        else hideCmsPattern();
+      }
+    }
+  }
+
+  if (!customElements.get('orbix-safe-pattern')) {
+    customElements.define('orbix-safe-pattern', OrbixSafePattern);
+  }
+</script>
